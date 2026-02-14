@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title><%= ui.siteTitle %>｜<%= ui.dashboard.heading %></title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/yumeri-ui@latest/dist/yumeri-ui.css" />
+  <style>
+    body {
+      background: #fff;
+      color: #1f2933;
+      margin: 0
+    }
+
+    header {
+      background: #111827;
+      color: #f9fafb
+    }
+
+    header .brand {
+      font-weight: 600;
+      font-size: 1.1rem
+    }
+
+    .header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2rem;
+      flex-wrap: wrap
+    }
+
+    nav ul {
+      list-style: none;
+      display: flex;
+      gap: 1.25rem;
+      margin: 0;
+      padding: 0;
+      flex-wrap: wrap
+    }
+
+    nav a {
+      color: #e2e8f0;
+      text-decoration: none;
+      font-size: .95rem;
+      font-weight: 500
+    }
+
+    nav a:hover {
+      text-decoration: underline
+    }
+
+    main {
+      flex: 1;
+      padding: 2.5rem 1rem
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto
+    }
+
+    footer {
+      padding: 1.5rem 0;
+      text-align: center;
+      color: #64748b;
+      font-size: .85rem
+    }
+
+    .section-title {
+      font-size: 1.6rem;
+      margin-bottom: .5rem;
+      font-weight: 600
+    }
+
+    .section-subtitle {
+      margin-bottom: 1.5rem;
+      color: #475569
+    }
+
+    .divider {
+      margin: 2rem 0;
+      border: 0;
+      border-top: 1px solid #e2e8f0
+    }
+
+    .muted {
+      color: #64748b;
+      font-size: .95rem
+    }
+
+    .table-actions {
+      display: flex;
+      gap: .75rem;
+      flex-wrap: wrap;
+      align-items: center
+    }
+
+    .btn-inline {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: .45rem 1.1rem;
+      border-radius: 999px;
+      border: 0;
+      font-weight: 600;
+      cursor: pointer
+    }
+
+    .btn-edit {
+      background: #e2e8f0;
+      color: #0f172a
+    }
+
+    .btn-delete {
+      background: #ef4444;
+      color: #fff
+    }
+
+    .root-domain-select {
+      width: 220px;
+      max-width: 100%;
+    }
+
+    @media(max-width:720px) {
+      .header-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .75rem
+      }
+
+      nav ul {
+        gap: .75rem
+      }
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, .55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000
+    }
+
+    .modal-backdrop.is-visible {
+      display: flex
+    }
+
+    .modal-panel {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.7rem;
+      width: min(560px, 92%)
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.2rem
+    }
+
+    .modal-title {
+      font-size: 1.3rem;
+      font-weight: 600
+    }
+
+    .modal-close {
+      background: none;
+      border: 0;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #475569
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 1rem;
+      justify-content: flex-end;
+      margin-top: 1.5rem
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-shell">
+    <header>
+      <div class="container" style="padding:1rem 0;">
+        <div class="header-bar">
+          <span class="brand" data-site-title><%= ui.siteTitle %></span>
+          <nav>
+            <ul id="nav-list">
+              <% if (ui && ui.navigation) { %>
+                <% ui.navigation.forEach(function(item){ %>
+                  <li><a href="<%= item.href %>"><%= item.label %></a></li>
+                <% }); %>
+              <% } %>
+            </ul>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div class="container">
+
+        <h2 class="section-title" id="subdomain-heading">三级域名管理</h2>
+        <p class="section-subtitle" id="subdomain-description">为你的应用快速开通专属三级域名。</p>
+        <p class="muted" id="user-info" style="margin-bottom:1.5rem;"></p>
+
+        <form id="create-subdomain-form" class="yui-form" novalidate>
+          <div class="yui-form__group">
+            <label for="root-domain-select">二级域名</label>
+            <select class="input root-domain-select" id="root-domain-select" name="rootDomain">
+              <option value="">加载中...</option>
+            </select>
+          </div>
+          <div class="yui-form__group">
+            <label for="subdomain-input">子域名前缀</label>
+            <div style="display:flex;gap:.5rem;align-items:center;">
+              <input class="input" type="text" id="subdomain-input" name="subdomain" required placeholder="例如：app"
+                style="flex:1;">
+              <span class="muted" id="root-domain-label"></span>
+            </div>
+          </div>
+
+          <div class="yui-form__group">
+            <label for="target-input">目标地址</label>
+            <input class="input" type="text" id="target-input" name="target" required
+              placeholder="例如：app.myservice.com">
+          </div>
+
+          <div class="yui-form__group">
+            <label for="type-select">记录类型</label>
+            <select class="input" id="type-select" name="type">
+              <option value="CNAME">CNAME</option>
+              <option value="A">A</option>
+              <option value="AAAA">AAAA</option>
+              <option value="SRV">SRV</option>
+            </select>
+          </div>
+
+          <div id="srv-fields" style="display:none;">
+            <div class="yui-form__group">
+              <label for="srv-service">服务名称</label>
+              <input class="input" type="text" id="srv-service" name="srvService" placeholder="例如：_minecraft">
+            </div>
+            <div class="yui-form__group">
+              <label for="srv-proto">协议</label>
+              <select class="input" id="srv-proto" name="srvProto">
+                <option value="_tcp">TCP</option>
+                <option value="_udp">UDP</option>
+                <option value="_tls">TLS</option>
+              </select>
+            </div>
+            <div class="yui-form__group">
+              <label for="srv-port">端口号</label>
+              <input class="input" type="number" id="srv-port" name="srvPort" min="1" max="65535" placeholder="例如：25565">
+            </div>
+          </div>
+
+          <label style="display:flex;align-items:center;gap:.5rem;">
+            <input type="checkbox" id="proxied-checkbox" name="proxied">
+            通过 Cloudflare 代理
+          </label>
+
+          <button type="submit" class="btn btn-primary" style="margin-top:1rem;">创建解析</button>
+        </form>
+
+        <div id="create-feedback" class="muted" style="margin-top:1.5rem;"></div>
+
+        <hr class="divider">
+
+        <h3 class="section-title" style="font-size:1.3rem;">已创建的解析</h3>
+        <p id="subdomain-empty" class="muted" style="display:none;">当前暂无记录，请先创建。</p>
+        <p id="subdomain-error" class="muted" style="display:none;color:#ef4444;"></p>
+
+        <div style="overflow-x:auto;">
+          <table aria-label="三级域名列表">
+            <thead>
+              <tr>
+                <th>子域名</th>
+                <th>记录类型</th>
+                <th>目标地址</th>
+                <th style="width:180px;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="subdomain-table-body"></tbody>
+          </table>
+        </div>
+
+      </div>
+    </main>
+
+    <footer id="footer-text"><%= ui.siteTitle %> · Powered by Yumeri</footer>
+  </div>
+
+  <!-- 编辑 Modal -->
+  <div id="edit-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-title">编辑解析</span>
+        <button type="button" class="modal-close" id="modal-close">×</button>
+      </div>
+      <form id="modal-form">
+        <div class="yui-form__group">
+          <label>顶级域名</label>
+          <div class="muted" id="modal-root-domain-text"></div>
+        </div>
+        <div class="yui-form__group">
+          <label for="modal-subdomain">子域名前缀</label>
+          <div style="display:flex;gap:.5rem;align-items:center;">
+            <input class="input" id="modal-subdomain" name="subdomain" required>
+            <span class="muted" id="modal-root-domain"></span>
+          </div>
+        </div>
+
+        <div class="yui-form__group">
+          <label for="modal-target">目标地址</label>
+          <input class="input" id="modal-target" name="target" required>
+        </div>
+
+        <div class="yui-form__group">
+          <label for="modal-type">记录类型</label>
+          <select class="input" id="modal-type" name="type">
+            <option value="CNAME">CNAME</option>
+            <option value="A">A</option>
+            <option value="AAAA">AAAA</option>
+            <option value="SRV">SRV</option>
+          </select>
+        </div>
+
+        <div id="modal-srv-fields" style="display:none;">
+          <div class="yui-form__group">
+            <label for="modal-srv-service">服务名称</label>
+            <input class="input" id="modal-srv-service" name="srvService" placeholder="例如：_minecraft">
+          </div>
+          <div class="yui-form__group">
+            <label for="modal-srv-proto">协议</label>
+            <select class="input" id="modal-srv-proto" name="srvProto">
+              <option value="_tcp">TCP</option>
+              <option value="_udp">UDP</option>
+              <option value="_tls">TLS</option>
+            </select>
+          </div>
+          <div class="yui-form__group">
+            <label for="modal-srv-port">端口号</label>
+            <input class="input" type="number" id="modal-srv-port" name="srvPort" min="1" max="65535" placeholder="例如：25565">
+          </div>
+        </div>
+
+        <label style="display:flex;align-items:center;gap:.5rem;">
+          <input type="checkbox" id="modal-proxied" name="proxied">
+          通过 Cloudflare 代理
+        </label>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="modal-cancel">取消</button>
+          <button type="submit" class="btn btn-primary" id="modal-save">保存</button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const state = { ui: null, rootDomain: '', rootDomains: [], records: [], editingRecordId: null };
+
+    async function loadDynamicConfig() {
+      try {
+        const res = await fetch('/api/ui-config');
+        const data = await res.json();
+        if (!data.success) return;
+        state.rootDomain = data.defaultDomain || data.cloudflareRootDomain || '';
+        state.rootDomains = Array.isArray(data.cloudflareDomains) ? data.cloudflareDomains : [];
+        const rootSelect = document.getElementById('root-domain-select');
+        if (rootSelect && state.rootDomains.length) {
+          rootSelect.innerHTML = '';
+          state.rootDomains.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.rootDomain;
+            opt.textContent = item.label || item.rootDomain;
+            rootSelect.appendChild(opt);
+          });
+          rootSelect.value = state.rootDomain || state.rootDomains[0].rootDomain;
+          state.rootDomain = rootSelect.value;
+          rootSelect.addEventListener('change', () => {
+            state.rootDomain = rootSelect.value;
+            const rootLabel = document.getElementById('root-domain-label');
+            if (rootLabel) rootLabel.textContent = state.rootDomain ? `.${state.rootDomain}` : '';
+          });
+        }
+        const rootLabels = [document.getElementById('root-domain-label'), document.getElementById('modal-root-domain')];
+        rootLabels.forEach(el => { if (el) el.textContent = state.rootDomain ? `.${state.rootDomain}` : '' });
+        const modalRootDomainText = document.getElementById('modal-root-domain-text');
+        if (modalRootDomainText) modalRootDomainText.textContent = state.rootDomain ? state.rootDomain : '';
+      } catch (err) { console.warn('无法加载动态配置:', err); }
+    }
+
+    function isSrvType(type) {
+      return String(type || '').toUpperCase() === 'SRV';
+    }
+
+    function toggleSrvFields(type, scope) {
+      const isSrv = isSrvType(type);
+      const prefix = scope === 'modal' ? 'modal-' : '';
+      const container = document.getElementById(`${prefix}srv-fields`);
+      if (container) container.style.display = isSrv ? 'block' : 'none';
+      const serviceInput = document.getElementById(`${prefix}srv-service`);
+      const protoInput = document.getElementById(`${prefix}srv-proto`);
+      const portInput = document.getElementById(`${prefix}srv-port`);
+      if (serviceInput) serviceInput.required = isSrv;
+      if (protoInput) protoInput.required = isSrv;
+      if (portInput) portInput.required = isSrv;
+      const proxiedInput = document.getElementById(scope === 'modal' ? 'modal-proxied' : 'proxied-checkbox');
+      if (proxiedInput) {
+        proxiedInput.disabled = isSrv;
+        if (isSrv) proxiedInput.checked = false;
+      }
+    }
+
+
+
+
+    function updateUserMeta(meta) {
+      const info = document.getElementById('user-info');
+      if (!info) return;
+      if (!meta || !meta.user) { info.textContent = ''; return; }
+      const name = meta.user.name || meta.user.id;
+      const max = typeof meta.limits?.maxPerUser === 'number' ? meta.limits.maxPerUser : null;
+      const remaining = typeof meta.limits?.remaining === 'number' ? meta.limits.remaining : null;
+      const limitText = max !== null && remaining !== null ? `，剩余可创建 ${remaining}/${max}` : '';
+      info.textContent = `当前登录：${name}${limitText}`;
+    }
+
+    function showError(msg) {
+      const box = document.getElementById('subdomain-error');
+      if (!box) return;
+      if (!msg) { box.style.display = 'none'; box.textContent = ''; }
+      else { box.style.display = 'block'; box.textContent = msg; }
+    }
+
+    function showCreateFeedback(record) {
+      const box = document.getElementById('create-feedback');
+      if (!record) { box.textContent = ''; return; }
+      const fullDomain = record.rootDomain
+        ? `${record.subdomain}.${record.rootDomain}`
+        : (state.rootDomain ? `${record.subdomain}.${state.rootDomain}` : record.subdomain);
+      box.innerHTML = `解析已创建：<strong>${fullDomain}</strong> → <span class="muted">${record.target}</span>`;
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('subdomain-table-body');
+      const emptyHint = document.getElementById('subdomain-empty');
+      if (!tbody || !emptyHint) return;
+      tbody.innerHTML = '';
+      if (!state.records.length) { emptyHint.style.display = 'block'; return; }
+      emptyHint.style.display = 'none';
+      state.records.forEach(record => {
+        const tr = document.createElement('tr');
+        const fullDomain = record.rootDomain
+          ? `${record.subdomain}.${record.rootDomain}`
+          : (state.rootDomain ? `${record.subdomain}.${state.rootDomain}` : record.subdomain);
+        const domainTd = document.createElement('td'); domainTd.innerHTML = `<span class="muted">${fullDomain}</span>`; tr.appendChild(domainTd);
+        const typeTd = document.createElement('td'); typeTd.textContent = record.type; tr.appendChild(typeTd);
+        const targetLabel = record.type === 'SRV'
+          ? `${record.target}${record.srvPort ? `:${record.srvPort}` : ''} ${record.srvService || ''} ${record.srvProto || ''}`.trim()
+          : record.target;
+        const targetTd = document.createElement('td'); targetTd.innerHTML = `<span class="muted">${targetLabel}</span>`; tr.appendChild(targetTd);
+        const actionsTd = document.createElement('td');
+        const wrapper = document.createElement('div'); wrapper.className = 'table-actions';
+        const editButton = document.createElement('button'); editButton.className = 'btn-inline btn-edit'; editButton.type = 'button'; editButton.textContent = '编辑';
+        editButton.addEventListener('click', () => openModal(record));
+        const deleteButton = document.createElement('button'); deleteButton.className = 'btn-inline btn-delete'; deleteButton.type = 'button'; deleteButton.textContent = '删除';
+        deleteButton.addEventListener('click', () => handleDelete(record.id));
+        wrapper.appendChild(editButton); wrapper.appendChild(deleteButton); actionsTd.appendChild(wrapper); tr.appendChild(actionsTd);
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function loadSubdomains() {
+      try {
+        const res = await fetch('/api/subdomains');
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || '获取解析列表失败');
+        state.records = data.data;
+        updateUserMeta(data.meta);
+        renderTable();
+      } catch (err) { showError(err.message || '获取解析列表失败'); updateUserMeta(null); }
+    }
+
+    function openModal(record) {
+      state.editingRecordId = record.id;
+      document.getElementById('modal-subdomain').value = record.subdomain;
+      document.getElementById('modal-target').value = record.target;
+      const modalType = document.getElementById('modal-type'); if (modalType) modalType.value = record.type;
+      const modalSrvService = document.getElementById('modal-srv-service'); if (modalSrvService) modalSrvService.value = record.srvService || '';
+      const modalSrvProto = document.getElementById('modal-srv-proto'); if (modalSrvProto) modalSrvProto.value = record.srvProto || '_tcp';
+      const modalSrvPort = document.getElementById('modal-srv-port'); if (modalSrvPort) modalSrvPort.value = record.srvPort || '';
+      const modalProxied = document.getElementById('modal-proxied'); if (modalProxied) modalProxied.checked = !!record.proxied;
+      const modalRootDomain = document.getElementById('modal-root-domain'); if (modalRootDomain) modalRootDomain.textContent = record.rootDomain ? `.${record.rootDomain}` : '';
+      const modalRootDomainText = document.getElementById('modal-root-domain-text'); if (modalRootDomainText) modalRootDomainText.textContent = record.rootDomain || '';
+      toggleSrvFields(record.type, 'modal');
+      document.getElementById('edit-modal').classList.add('is-visible');
+      showError('');
+    }
+
+    function closeModal() {
+      state.editingRecordId = null;
+      document.getElementById('modal-form').reset();
+      document.getElementById('edit-modal').classList.remove('is-visible');
+    }
+
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+    document.getElementById('modal-cancel').addEventListener('click', closeModal);
+    document.getElementById('edit-modal').addEventListener('click', evt => { if (evt.target === evt.currentTarget) closeModal(); });
+    document.getElementById('modal-type').addEventListener('change', event => toggleSrvFields(event.target.value, 'modal'));
+    document.getElementById('type-select').addEventListener('change', event => toggleSrvFields(event.target.value));
+
+    document.getElementById('modal-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!state.editingRecordId) return;
+      showError('');
+      const formData = new FormData(event.currentTarget);
+      const payload = {
+        subdomain: formData.get('subdomain'),
+        target: formData.get('target'),
+        type: formData.get('type'),
+        srvService: formData.get('srvService'),
+        srvProto: formData.get('srvProto'),
+        srvPort: formData.get('srvPort'),
+        proxied: formData.get('proxied') === 'on'
+      };
+      if (isSrvType(payload.type) && (!payload.srvService || !payload.srvProto || !payload.srvPort)) {
+        showError('SRV 记录需要服务名称、协议和端口号。');
+        return;
+      }
+      try {
+        const res = await fetch(`/api/subdomains/${encodeURIComponent(state.editingRecordId)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || '更新失败');
+        closeModal(); await loadSubdomains();
+      } catch (err) { showError(err.message || '更新解析失败'); }
+    });
+
+    async function handleDelete(id) {
+      if (!confirm('确定删除该解析吗？')) return;
+      showError('');
+      try {
+        const res = await fetch(`/api/subdomains/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || '删除失败');
+        await loadSubdomains();
+      } catch (err) { showError(err.message || '删除解析失败'); }
+    }
+
+    document.getElementById('create-subdomain-form').addEventListener('submit', async event => {
+      event.preventDefault(); showError('');
+      const form = event.currentTarget;
+      const formData = new FormData(form);
+      const rootDomainSelect = document.getElementById('root-domain-select');
+      const selectedRootDomain = rootDomainSelect && rootDomainSelect.value ? rootDomainSelect.value : state.rootDomain;
+      const payload = {
+        subdomain: formData.get('subdomain'),
+        rootDomain: selectedRootDomain,
+        target: formData.get('target'),
+        type: formData.get('type'),
+        srvService: formData.get('srvService'),
+        srvProto: formData.get('srvProto'),
+        srvPort: formData.get('srvPort'),
+        proxied: formData.get('proxied') === 'on'
+      };
+      if (!payload.subdomain || !payload.target) { showError('子域名与目标地址均为必填。'); return; }
+      if (!payload.rootDomain) { showError('请选择顶级域名。'); return; }
+      if (isSrvType(payload.type) && (!payload.srvService || !payload.srvProto || !payload.srvPort)) {
+        showError('SRV 记录需要服务名称、协议和端口号。');
+        return;
+      }
+      try {
+        const res = await fetch('/api/subdomains', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || '创建解析失败');
+        form.reset(); showCreateFeedback(data.data); await loadSubdomains();
+      } catch (err) { showError(err.message || '创建解析失败'); }
+    });
+
+
+    (async function init() {
+      toggleSrvFields(document.getElementById('type-select').value);
+      await loadDynamicConfig();
+      await loadSubdomains();
+    })();
+  </script>
+</body>
+
+</html>

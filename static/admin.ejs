@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= ui.siteTitle %>｜管理员面板</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/yumeri-ui@latest/dist/yumeri-ui.css" />
+  <style>
+    body { background: #fff; color: #1f2933; margin: 0; }
+    header { background: #111827; color: #f9fafb; }
+    header .brand { font-weight: 600; font-size: 1.1rem; }
+    .header-bar { display: flex; align-items: center; justify-content: space-between; gap: 2rem; flex-wrap: wrap; }
+    nav ul { list-style: none; display: flex; gap: 1.25rem; margin: 0; padding: 0; flex-wrap: wrap; }
+    nav a { color: #e2e8f0; text-decoration: none; font-size: .95rem; font-weight: 500; }
+    nav a:hover { text-decoration: underline; }
+    main { padding: 2.5rem 1rem; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .section-title { font-size: 1.6rem; margin-bottom: .5rem; font-weight: 600; }
+    .section-subtitle { margin-bottom: 1.5rem; color: #475569; }
+    .divider { margin: 2rem 0; border: 0; border-top: 1px solid #e2e8f0; }
+    .muted { color: #64748b; font-size: .95rem; }
+    .table-actions { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; }
+    .btn-inline { display: inline-flex; align-items: center; justify-content: center; padding: .45rem 1.1rem; border-radius: 999px; border: 0; font-weight: 600; cursor: pointer; }
+    .btn-edit { background: #e2e8f0; color: #0f172a; }
+    .btn-delete { background: #ef4444; color: #fff; }
+    footer { padding: 1.5rem 0; text-align: center; color: #64748b; font-size: .85rem; }
+    .root-domain-select { width: 220px; max-width: 100%; }
+    @media(max-width:720px){ .header-bar{flex-direction:column;align-items:flex-start;gap:.75rem} nav ul{gap:.75rem} }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .55); display: none; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-backdrop.is-visible { display: flex; }
+    .modal-panel { background: #fff; border-radius: 12px; padding: 1.7rem; width: min(720px, 92%); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem; }
+    .modal-title { font-size: 1.3rem; font-weight: 600; }
+    .modal-close { background: none; border: 0; font-size: 1.5rem; cursor: pointer; color: #475569; }
+    .modal-actions { display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header>
+      <div class="container" style="padding:1rem 0;">
+        <div class="header-bar">
+          <span class="brand"><%= ui.siteTitle %></span>
+          <nav>
+            <ul>
+              <% if (ui && ui.navigation) { %>
+                <% ui.navigation.forEach(function(item){ %>
+                  <li><a href="<%= item.href %>"><%= item.label %></a></li>
+                <% }); %>
+              <% } %>
+              <li><a href="/admin">管理员</a></li>
+            </ul>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div class="container">
+        <h2 class="section-title">管理员面板</h2>
+        <p class="section-subtitle">管理子域名与 OIDC 应用。</p>
+        <p class="muted" id="admin-info"></p>
+
+        <hr class="divider">
+
+        <h3 class="section-title" style="font-size:1.3rem;">子域名管理</h3>
+        <form id="admin-subdomain-form" class="yui-form" novalidate>
+          <div class="yui-form__group">
+            <label for="admin-owner">Owner ID</label>
+            <input class="input" id="admin-owner" name="owner" placeholder="用户 sub" required>
+          </div>
+          <div class="yui-form__group">
+            <label for="admin-root-domain">顶级域名</label>
+            <select class="input root-domain-select" id="admin-root-domain" name="rootDomain">
+              <option value="">加载中...</option>
+            </select>
+          </div>
+          <div class="yui-form__group">
+            <label for="admin-subdomain">子域名前缀</label>
+            <input class="input" id="admin-subdomain" name="subdomain" placeholder="例如：app" required>
+          </div>
+          <div class="yui-form__group">
+            <label for="admin-target">目标地址</label>
+            <input class="input" id="admin-target" name="target" placeholder="例如：app.myservice.com" required>
+          </div>
+          <div class="yui-form__group">
+            <label for="admin-type">记录类型</label>
+            <select class="input" id="admin-type" name="type">
+              <option value="CNAME">CNAME</option>
+              <option value="A">A</option>
+              <option value="AAAA">AAAA</option>
+              <option value="SRV">SRV</option>
+            </select>
+          </div>
+          <div id="admin-srv-fields" style="display:none;">
+            <div class="yui-form__group">
+              <label for="admin-srv-service">服务名称</label>
+              <input class="input" id="admin-srv-service" name="srvService" placeholder="例如：_minecraft">
+            </div>
+            <div class="yui-form__group">
+              <label for="admin-srv-proto">协议</label>
+              <select class="input" id="admin-srv-proto" name="srvProto">
+                <option value="_tcp">TCP</option>
+                <option value="_udp">UDP</option>
+                <option value="_tls">TLS</option>
+              </select>
+            </div>
+            <div class="yui-form__group">
+              <label for="admin-srv-port">端口号</label>
+              <input class="input" type="number" id="admin-srv-port" name="srvPort" min="1" max="65535" placeholder="例如：25565">
+            </div>
+          </div>
+          <label style="display:flex;align-items:center;gap:.5rem;">
+            <input type="checkbox" id="admin-proxied" name="proxied">
+            通过 Cloudflare 代理
+          </label>
+          <button type="submit" class="btn btn-primary" style="margin-top:1rem;">创建解析</button>
+        </form>
+        <p class="muted" id="admin-subdomain-error" style="display:none;color:#ef4444;"></p>
+
+        <div style="overflow-x:auto;margin-top:1rem;">
+          <table aria-label="子域名列表">
+            <thead>
+              <tr>
+                <th>Owner</th>
+                <th>域名</th>
+                <th>类型</th>
+                <th>目标</th>
+                <th style="width:180px;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="admin-subdomain-table"></tbody>
+          </table>
+        </div>
+
+        <hr class="divider">
+
+        <h3 class="section-title" style="font-size:1.3rem;">OIDC 应用管理</h3>
+        <form id="admin-client-form" class="yui-form" novalidate>
+          <div class="yui-form__group">
+            <label for="admin-client-owner">Owner ID</label>
+            <input class="input" id="admin-client-owner" name="owner" placeholder="用户 sub" required>
+          </div>
+          <div class="yui-form__group">
+            <label for="admin-client-name">客户端名称</label>
+            <input class="input" id="admin-client-name" name="client_name" required>
+          </div>
+          <div class="yui-form__group">
+            <label for="admin-client-uris">回调地址（每行一个）</label>
+            <textarea class="input" id="admin-client-uris" name="redirect_uris" rows="3" required></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">创建客户端</button>
+        </form>
+        <p class="muted" id="admin-client-error" style="display:none;color:#ef4444;"></p>
+
+        <div style="overflow-x:auto;margin-top:1rem;">
+          <table aria-label="客户端列表">
+            <thead>
+              <tr>
+                <th>Client ID</th>
+                <th>名称</th>
+                <th>Owner</th>
+                <th style="width:180px;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="admin-client-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <footer><%= ui.siteTitle %> · Powered by Yumeri</footer>
+  </div>
+
+  <!-- Subdomain Modal -->
+  <div id="admin-subdomain-modal" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <span class="modal-title">编辑子域名</span>
+        <button type="button" class="modal-close" id="admin-subdomain-close">×</button>
+      </div>
+      <form id="admin-subdomain-edit-form">
+        <div class="yui-form__group">
+          <label>Owner</label>
+          <div class="muted" id="admin-subdomain-owner-text"></div>
+        </div>
+        <div class="yui-form__group">
+          <label>顶级域名</label>
+          <div class="muted" id="admin-subdomain-root-text"></div>
+        </div>
+        <div class="yui-form__group">
+          <label for="admin-edit-subdomain">子域名前缀</label>
+          <input class="input" id="admin-edit-subdomain" name="subdomain" required>
+        </div>
+        <div class="yui-form__group">
+          <label for="admin-edit-target">目标地址</label>
+          <input class="input" id="admin-edit-target" name="target" required>
+        </div>
+        <div class="yui-form__group">
+          <label for="admin-edit-type">记录类型</label>
+          <select class="input" id="admin-edit-type" name="type">
+            <option value="CNAME">CNAME</option>
+            <option value="A">A</option>
+            <option value="AAAA">AAAA</option>
+            <option value="SRV">SRV</option>
+          </select>
+        </div>
+        <div id="admin-edit-srv-fields" style="display:none;">
+          <div class="yui-form__group">
+            <label for="admin-edit-srv-service">服务名称</label>
+            <input class="input" id="admin-edit-srv-service" name="srvService">
+          </div>
+          <div class="yui-form__group">
+            <label for="admin-edit-srv-proto">协议</label>
+            <select class="input" id="admin-edit-srv-proto" name="srvProto">
+              <option value="_tcp">TCP</option>
+              <option value="_udp">UDP</option>
+              <option value="_tls">TLS</option>
+            </select>
+          </div>
+          <div class="yui-form__group">
+            <label for="admin-edit-srv-port">端口号</label>
+            <input class="input" type="number" id="admin-edit-srv-port" name="srvPort" min="1" max="65535">
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:.5rem;">
+          <input type="checkbox" id="admin-edit-proxied" name="proxied">
+          通过 Cloudflare 代理
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="admin-subdomain-cancel">取消</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Client Modal -->
+  <div id="admin-client-modal" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <span class="modal-title">编辑客户端</span>
+        <button type="button" class="modal-close" id="admin-client-close">×</button>
+      </div>
+      <form id="admin-client-edit-form">
+        <div class="yui-form__group">
+          <label>Client ID</label>
+          <div class="muted" id="admin-client-id-text"></div>
+        </div>
+        <div class="yui-form__group">
+          <label for="admin-edit-client-name">客户端名称</label>
+          <input class="input" id="admin-edit-client-name" name="client_name" required>
+        </div>
+        <div class="yui-form__group">
+          <label for="admin-edit-client-uris">回调地址（每行一个）</label>
+          <textarea class="input" id="admin-edit-client-uris" name="redirect_uris" rows="3" required></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="admin-client-cancel">取消</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const state = { rootDomains: [], defaultRoot: '', subdomains: [], clients: [], editingSubdomainId: null, editingClientId: null };
+
+    function showError(id, msg) {
+      const box = document.getElementById(id);
+      if (!box) return;
+      if (!msg) { box.style.display = 'none'; box.textContent = ''; }
+      else { box.style.display = 'block'; box.textContent = msg; }
+    }
+
+    function isSrvType(type) { return String(type || '').toUpperCase() === 'SRV'; }
+
+    function toggleSrvFields(scope, type) {
+      const isSrv = isSrvType(type);
+      const prefix = scope === 'edit' ? 'admin-edit-' : 'admin-';
+      const container = document.getElementById(scope === 'edit' ? 'admin-edit-srv-fields' : 'admin-srv-fields');
+      if (container) container.style.display = isSrv ? 'block' : 'none';
+      const proxiedInput = document.getElementById(scope === 'edit' ? 'admin-edit-proxied' : 'admin-proxied');
+      if (proxiedInput) {
+        proxiedInput.disabled = isSrv;
+        if (isSrv) proxiedInput.checked = false;
+      }
+    }
+
+    async function loadUiConfig() {
+      const res = await fetch('/api/ui-config');
+      const data = await res.json();
+      if (!data.success) return;
+      state.rootDomains = Array.isArray(data.cloudflareDomains) ? data.cloudflareDomains : [];
+      state.defaultRoot = data.defaultDomain || '';
+      const select = document.getElementById('admin-root-domain');
+      if (select && state.rootDomains.length) {
+        select.innerHTML = '';
+        state.rootDomains.forEach(item => {
+          const opt = document.createElement('option');
+          opt.value = item.rootDomain;
+          opt.textContent = item.label || item.rootDomain;
+          select.appendChild(opt);
+        });
+        select.value = state.defaultRoot || state.rootDomains[0].rootDomain;
+      }
+    }
+
+    async function loadSubdomains() {
+      const res = await fetch('/api/admin/subdomains');
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || '加载失败');
+      state.subdomains = data.data || [];
+      renderSubdomains();
+    }
+
+    function renderSubdomains() {
+      const tbody = document.getElementById('admin-subdomain-table');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      state.subdomains.forEach(record => {
+        const tr = document.createElement('tr');
+        const fullDomain = record.rootDomain ? `${record.subdomain}.${record.rootDomain}` : record.subdomain;
+        const targetLabel = record.type === 'SRV'
+          ? `${record.content}${record.srvPort ? `:${record.srvPort}` : ''} ${record.srvService || ''} ${record.srvProto || ''}`.trim()
+          : record.content;
+        tr.innerHTML = `
+          <td>${record.owner}</td>
+          <td><span class="muted">${fullDomain}</span></td>
+          <td>${record.type}</td>
+          <td><span class="muted">${targetLabel}</span></td>
+          <td></td>
+        `;
+        const actionsTd = tr.querySelector('td:last-child');
+        const wrapper = document.createElement('div'); wrapper.className = 'table-actions';
+        const editButton = document.createElement('button'); editButton.className = 'btn-inline btn-edit'; editButton.type = 'button'; editButton.textContent = '编辑';
+        editButton.addEventListener('click', () => openSubdomainModal(record));
+        const deleteButton = document.createElement('button'); deleteButton.className = 'btn-inline btn-delete'; deleteButton.type = 'button'; deleteButton.textContent = '删除';
+        deleteButton.addEventListener('click', () => deleteSubdomain(record.id));
+        wrapper.appendChild(editButton); wrapper.appendChild(deleteButton); actionsTd.appendChild(wrapper);
+        tbody.appendChild(tr);
+      });
+    }
+
+    function openSubdomainModal(record) {
+      state.editingSubdomainId = record.id;
+      document.getElementById('admin-subdomain-owner-text').textContent = record.owner;
+      document.getElementById('admin-subdomain-root-text').textContent = record.rootDomain || '';
+      document.getElementById('admin-edit-subdomain').value = record.subdomain;
+      document.getElementById('admin-edit-target').value = record.content;
+      document.getElementById('admin-edit-type').value = record.type;
+      document.getElementById('admin-edit-srv-service').value = record.srvService || '';
+      document.getElementById('admin-edit-srv-proto').value = record.srvProto || '_tcp';
+      document.getElementById('admin-edit-srv-port').value = record.srvPort || '';
+      document.getElementById('admin-edit-proxied').checked = !!record.proxied;
+      toggleSrvFields('edit', record.type);
+      document.getElementById('admin-subdomain-modal').classList.add('is-visible');
+    }
+
+    function closeSubdomainModal() {
+      state.editingSubdomainId = null;
+      document.getElementById('admin-subdomain-edit-form').reset();
+      document.getElementById('admin-subdomain-modal').classList.remove('is-visible');
+    }
+
+    async function deleteSubdomain(id) {
+      if (!confirm('确定删除该解析吗？')) return;
+      const res = await fetch(`/api/admin/subdomains/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!data.success) { showError('admin-subdomain-error', data.message || '删除失败'); return; }
+      await loadSubdomains();
+    }
+
+    async function loadClients() {
+      const res = await fetch('/api/admin/clients');
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || '加载失败');
+      state.clients = data.data || [];
+      renderClients();
+    }
+
+    function renderClients() {
+      const tbody = document.getElementById('admin-client-table');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      state.clients.forEach(client => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><span class="muted">${client.client_id}</span></td>
+          <td>${client.client_name}</td>
+          <td><span class="muted">${client.owner}</span></td>
+          <td></td>
+        `;
+        const actionsTd = tr.querySelector('td:last-child');
+        const wrapper = document.createElement('div'); wrapper.className = 'table-actions';
+        const editButton = document.createElement('button'); editButton.className = 'btn-inline btn-edit'; editButton.type = 'button'; editButton.textContent = '编辑';
+        editButton.addEventListener('click', () => openClientModal(client));
+        const deleteButton = document.createElement('button'); deleteButton.className = 'btn-inline btn-delete'; deleteButton.type = 'button'; deleteButton.textContent = '删除';
+        deleteButton.addEventListener('click', () => deleteClient(client.client_id));
+        wrapper.appendChild(editButton); wrapper.appendChild(deleteButton); actionsTd.appendChild(wrapper);
+        tbody.appendChild(tr);
+      });
+    }
+
+    function openClientModal(client) {
+      state.editingClientId = client.client_id;
+      document.getElementById('admin-client-id-text').textContent = client.client_id;
+      document.getElementById('admin-edit-client-name').value = client.client_name;
+      document.getElementById('admin-edit-client-uris').value = (client.redirect_uris || []).join('\n');
+      document.getElementById('admin-client-modal').classList.add('is-visible');
+    }
+
+    function closeClientModal() {
+      state.editingClientId = null;
+      document.getElementById('admin-client-edit-form').reset();
+      document.getElementById('admin-client-modal').classList.remove('is-visible');
+    }
+
+    async function deleteClient(clientId) {
+      if (!confirm('确定删除该客户端吗？')) return;
+      const res = await fetch(`/api/admin/clients/${encodeURIComponent(clientId)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!data.success) { showError('admin-client-error', data.message || '删除失败'); return; }
+      await loadClients();
+    }
+
+    document.getElementById('admin-type').addEventListener('change', evt => toggleSrvFields('create', evt.target.value));
+    document.getElementById('admin-edit-type').addEventListener('change', evt => toggleSrvFields('edit', evt.target.value));
+
+    document.getElementById('admin-subdomain-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      showError('admin-subdomain-error', '');
+      const formData = new FormData(event.currentTarget);
+      const payload = {
+        owner: formData.get('owner'),
+        rootDomain: formData.get('rootDomain'),
+        subdomain: formData.get('subdomain'),
+        target: formData.get('target'),
+        type: formData.get('type'),
+        srvService: formData.get('srvService'),
+        srvProto: formData.get('srvProto'),
+        srvPort: formData.get('srvPort'),
+        proxied: formData.get('proxied') === 'on',
+      };
+      if (isSrvType(payload.type) && (!payload.srvService || !payload.srvProto || !payload.srvPort)) {
+        showError('admin-subdomain-error', 'SRV 记录需要服务名称、协议和端口号。');
+        return;
+      }
+      const res = await fetch('/api/admin/subdomains', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (!data.success) { showError('admin-subdomain-error', data.message || '创建失败'); return; }
+      event.currentTarget.reset();
+      toggleSrvFields('create', document.getElementById('admin-type').value);
+      await loadSubdomains();
+    });
+
+    document.getElementById('admin-subdomain-edit-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!state.editingSubdomainId) return;
+      showError('admin-subdomain-error', '');
+      const formData = new FormData(event.currentTarget);
+      const payload = {
+        subdomain: formData.get('subdomain'),
+        target: formData.get('target'),
+        type: formData.get('type'),
+        srvService: formData.get('srvService'),
+        srvProto: formData.get('srvProto'),
+        srvPort: formData.get('srvPort'),
+        proxied: formData.get('proxied') === 'on',
+      };
+      if (isSrvType(payload.type) && (!payload.srvService || !payload.srvProto || !payload.srvPort)) {
+        showError('admin-subdomain-error', 'SRV 记录需要服务名称、协议和端口号。');
+        return;
+      }
+      const res = await fetch(`/api/admin/subdomains/${encodeURIComponent(state.editingSubdomainId)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (!data.success) { showError('admin-subdomain-error', data.message || '更新失败'); return; }
+      closeSubdomainModal();
+      await loadSubdomains();
+    });
+
+    document.getElementById('admin-subdomain-close').addEventListener('click', closeSubdomainModal);
+    document.getElementById('admin-subdomain-cancel').addEventListener('click', closeSubdomainModal);
+    document.getElementById('admin-subdomain-modal').addEventListener('click', evt => { if (evt.target === evt.currentTarget) closeSubdomainModal(); });
+
+    document.getElementById('admin-client-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      showError('admin-client-error', '');
+      const formData = new FormData(event.currentTarget);
+      const payload = {
+        owner: formData.get('owner'),
+        client_name: formData.get('client_name'),
+        redirect_uris: formData.get('redirect_uris'),
+      };
+      const res = await fetch('/api/admin/clients', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (!data.success) { showError('admin-client-error', data.message || '创建失败'); return; }
+      event.currentTarget.reset();
+      await loadClients();
+    });
+
+    document.getElementById('admin-client-edit-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!state.editingClientId) return;
+      showError('admin-client-error', '');
+      const formData = new FormData(event.currentTarget);
+      const payload = {
+        client_name: formData.get('client_name'),
+        redirect_uris: formData.get('redirect_uris'),
+      };
+      const res = await fetch(`/api/admin/clients/${encodeURIComponent(state.editingClientId)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (!data.success) { showError('admin-client-error', data.message || '更新失败'); return; }
+      closeClientModal();
+      await loadClients();
+    });
+
+    document.getElementById('admin-client-close').addEventListener('click', closeClientModal);
+    document.getElementById('admin-client-cancel').addEventListener('click', closeClientModal);
+    document.getElementById('admin-client-modal').addEventListener('click', evt => { if (evt.target === evt.currentTarget) closeClientModal(); });
+
+    (async function init() {
+      toggleSrvFields('create', document.getElementById('admin-type').value);
+      await loadUiConfig();
+      await loadSubdomains();
+      await loadClients();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title><%= ui.siteTitle %>｜<%= ui.dashboard.heading %></title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/yumeri-ui@latest/dist/yumeri-ui.css" />
+
+  <style>
+    body {
+      background: #f4f6fb;
+      color: #1f2933;
+      margin: 0
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column
+    }
+
+    header {
+      background: #111827;
+      color: #f9fafb
+    }
+
+    header .brand {
+      font-weight: 600;
+      font-size: 1.1rem
+    }
+
+    .header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2rem;
+      flex-wrap: wrap
+    }
+
+    nav ul {
+      list-style: none;
+      display: flex;
+      gap: 1.25rem;
+      margin: 0;
+      padding: 0;
+      flex-wrap: wrap
+    }
+
+    nav a {
+      color: #e2e8f0;
+      text-decoration: none;
+      font-size: .95rem;
+      font-weight: 500
+    }
+
+    nav a:hover {
+      text-decoration: underline
+    }
+
+    main {
+      flex: 1;
+      padding: 2rem 1rem
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto
+    }
+
+    footer {
+      text-align: center;
+      color: #64748b;
+      font-size: .85rem;
+      padding: 1.5rem 0
+    }
+
+    .section-title {
+      font-size: 1.6rem;
+      margin-bottom: .5rem;
+      font-weight: 600
+    }
+
+    .section-subtitle {
+      margin-bottom: 1.5rem;
+      color: #475569
+    }
+
+    .divider {
+      margin: 2rem 0;
+      border: none;
+      border-top: 1px solid #e2e8f0
+    }
+
+    .muted {
+      color: #64748b;
+      font-size: .95rem
+    }
+
+    .credential {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 1rem;
+      border-radius: 12px;
+      font-family: 'Fira Code', monospace;
+      word-break: break-all;
+      margin-top: 1rem
+    }
+
+    .table-actions {
+      display: flex;
+      gap: .75rem;
+      flex-wrap: wrap;
+      align-items: center
+    }
+
+    .btn-inline {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: .5rem 1.2rem;
+      border-radius: 999px;
+      cursor: pointer;
+      border: none;
+      font-weight: 600
+    }
+
+    .btn-edit {
+      background: #e2e8f0;
+      color: #0f172a
+    }
+
+    .btn-delete {
+      background: linear-gradient(135deg, #ef4444, #f97316);
+      color: #fff
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 720px
+    }
+
+    th,
+    td {
+      text-align: left;
+      padding: .75rem .5rem;
+      vertical-align: top
+    }
+
+    th {
+      white-space: nowrap;
+      color: #475569;
+      font-size: .9rem
+    }
+
+    @media(max-width:720px) {
+      .header-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .75rem
+      }
+
+      nav ul {
+        gap: .75rem
+      }
+    }
+
+    @media(max-width:640px) {
+      main {
+        padding: 1.25rem .75rem
+      }
+
+      .section-title {
+        font-size: 1.35rem
+      }
+
+      .header-bar {
+        gap: .5rem
+      }
+
+      table {
+        min-width: 600px
+      }
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, .55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000
+    }
+
+    .modal-backdrop.is-visible {
+      display: flex
+    }
+
+    .modal-panel {
+      background: #fff;
+      border-radius: 18px;
+      padding: 2rem;
+      width: min(560px, 92%);
+      box-shadow: 0 25px 50px rgba(15, 23, 42, .25)
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem
+    }
+
+    .modal-title {
+      font-size: 1.4rem;
+      font-weight: 600
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.6rem;
+      cursor: pointer;
+      color: #475569;
+      line-height: 1
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 1rem;
+      justify-content: flex-end;
+      margin-top: 2rem
+    }
+
+    .hidden {
+      display: none !important
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-shell">
+    <header>
+      <div class="container" style="padding:1rem 0;">
+        <div class="header-bar">
+          <span class="brand" data-site-title><%= ui.siteTitle %></span>
+          <nav aria-label="主导航">
+            <ul id="nav-list">
+              <% if (ui && ui.navigation) { %>
+                <% ui.navigation.forEach(function(item){ %>
+                  <li><a href="<%= item.href %>"><%= item.label %></a></li>
+                <% }); %>
+              <% } %>
+            </ul>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div class="container">
+
+        <div
+          style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:.75rem;">
+          <div>
+            <h2 class="section-title" id="dashboard-heading"><%= ui.dashboard.heading %></h2>
+            <p class="section-subtitle" id="dashboard-description"><%= ui.dashboard.description %></p>
+          </div>
+          <div class="muted" id="welcome-text"></div>
+        </div>
+
+        <!-- 创建 -->
+        <form id="create-form" class="yui-form" novalidate>
+          <div class="yui-form__group">
+            <label for="client-name" id="label-client-name"><%= ui.dashboard.createForm.clientNameLabel %></label>
+            <input class="input" type="text" id="client-name" name="client_name" required placeholder="<%= ui.dashboard.createForm.clientNamePlaceholder %>" />
+          </div>
+          <div class="yui-form__group">
+            <label for="redirect-uris" id="label-redirect-uris"><%= ui.dashboard.createForm.redirectUrisLabel %></label>
+            <textarea class="input" id="redirect-uris" name="redirect_uris" required
+              placeholder="<%= ui.dashboard.createForm.redirectUrisPlaceholder %>"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary" id="create-submit" style="margin-top:1rem;"><%= ui.dashboard.createForm.submitButton %></button>
+        </form>
+
+        <div id="create-result" class="muted" style="margin-top:1.5rem;"></div>
+
+        <hr class="divider" />
+
+        <!-- 列表 -->
+        <h3 class="section-title" id="clients-title" style="font-size:1.3rem;">已注册客户端</h3>
+        <p id="clients-empty" class="muted" style="display:none;">当前暂无客户端，请先创建。</p>
+        <div id="clients-error" class="muted" style="display:none;color:#ef4444;"></div>
+
+        <div style="overflow-x:auto;">
+          <table aria-label="客户端列表">
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>客户端 ID</th>
+                <th>回调地址</th>
+                <th style="width:180px;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="clients-table-body"></tbody>
+          </table>
+        </div>
+
+      </div>
+    </main>
+
+    <footer id="footer-text"><%= ui.siteTitle %> · Powered by Yumeri</footer>
+  </div>
+
+  <!-- modal -->
+  <div id="edit-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-title">编辑客户端</span>
+        <button type="button" class="modal-close" id="modal-close" aria-label="关闭">×</button>
+      </div>
+      <form id="modal-form">
+        <div class="yui-form__group">
+          <label for="modal-client-name">客户端名称</label>
+          <input class="input" id="modal-client-name" name="client_name" type="text" required />
+        </div>
+        <div class="yui-form__group">
+          <label for="modal-redirect-uris">回调地址（每行一个）</label>
+          <textarea class="input" id="modal-redirect-uris" name="redirect_uris" required></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="modal-cancel">取消</button>
+          <button type="submit" class="btn btn-primary" id="modal-save">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <script>
+    const state = {
+      ui: null,
+      clients: [],
+      editingClientId: null,
+    };
+
+    function setText(id, text) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    }
+
+    function showCreateResult(client) {
+      const container = document.getElementById('create-result');
+      if (!client) {
+        container.textContent = '';
+        return;
+      }
+      container.innerHTML = `
+        <div>客户端创建成功，请妥善保存以下凭证：</div>
+        <div class="credential">Client ID: ${client.clientId}</div>
+        <div class="credential">Client Secret: ${client.clientSecret}</div>
+      `;
+    }
+
+    function showError(message) {
+      const box = document.getElementById('clients-error');
+      if (!message) {
+        box.style.display = 'none';
+        box.textContent = '';
+        return;
+      }
+      box.style.display = 'block';
+      box.textContent = message;
+    }
+
+    function renderClients() {
+      const tbody = document.getElementById('clients-table-body');
+      const emptyHint = document.getElementById('clients-empty');
+      tbody.innerHTML = '';
+
+      if (!state.clients.length) {
+        emptyHint.style.display = 'block';
+        return;
+      }
+      emptyHint.style.display = 'none';
+
+      state.clients.forEach(client => {
+        const tr = document.createElement('tr');
+
+        const nameTd = document.createElement('td');
+        nameTd.innerHTML = client.clientName;
+        tr.appendChild(nameTd);
+
+        const idTd = document.createElement('td');
+        idTd.innerHTML = `<span class="muted">${client.clientId}</span>`;
+        tr.appendChild(idTd);
+
+        const redirectTd = document.createElement('td');
+        redirectTd.innerHTML = client.redirectUris.map(uri => `<div class="muted">${uri}</div>`).join('');
+        tr.appendChild(redirectTd);
+
+        const actionsTd = document.createElement('td');
+        const wrapper = document.createElement('div');
+        wrapper.className = 'table-actions';
+
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'btn-inline btn-edit';
+        editBtn.textContent = '编辑';
+        editBtn.addEventListener('click', () => openModal(client));
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'btn-inline btn-delete';
+        deleteBtn.textContent = '删除';
+        deleteBtn.addEventListener('click', () => handleDelete(client.clientId));
+
+        wrapper.appendChild(editBtn);
+        wrapper.appendChild(deleteBtn);
+        actionsTd.appendChild(wrapper);
+
+        tr.appendChild(actionsTd);
+        tbody.appendChild(tr);
+      });
+    }
+
+    function openModal(client) {
+      state.editingClientId = client.clientId;
+      document.getElementById('modal-client-name').value = client.clientName;
+      document.getElementById('modal-redirect-uris').value = client.redirectUris.join('\n');
+      document.getElementById('edit-modal').classList.add('is-visible');
+      showError('');
+    }
+
+    function closeModal() {
+      state.editingClientId = null;
+      document.getElementById('modal-form').reset();
+      document.getElementById('edit-modal').classList.remove('is-visible');
+    }
+
+    async function loadClients() {
+      try {
+        const res = await fetch('/api/clients', { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || '获取客户端列表失败');
+        state.clients = data.data;
+        renderClients();
+      } catch (err) {
+        showError(err.message || '获取客户端列表失败');
+      }
+    }
+
+
+
+    async function loadProfile() {
+      try {
+        const res = await fetch('/api/profile');
+        const data = await res.json();
+        if (!data.success) return;
+        const welcome = document.getElementById('welcome-text');
+        if (welcome) {
+          const parts = [`欢迎，<strong>${data.data.name}</strong>`];
+          if (data.data.email) {
+            parts.push(`<span class="muted" style="margin-left:0.5rem;">(${data.data.email})</span>`);
+          }
+          welcome.innerHTML = parts.join('');
+        }
+      } catch (err) {
+        console.warn('无法获取个人资料:', err);
+      }
+    }
+
+    document.getElementById('create-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      showError('');
+      const form = event.currentTarget;
+      const formData = new FormData(form);
+      const payload = {
+        client_name: formData.get('client_name'),
+        redirect_uris: String(formData.get('redirect_uris') || '')
+          .split(/\r?\n/)
+          .map(v => v.trim())
+          .filter(Boolean),
+      };
+      if (!payload.client_name || !payload.redirect_uris.length) {
+        showError('客户端名称和回调地址均为必填。');
+        return;
+      }
+      try {
+        const res = await fetch('/api/clients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || '创建客户端失败');
+        form.reset();
+        showCreateResult(data.data);
+        await loadClients();
+      } catch (err) {
+        showError(err.message || '创建客户端失败');
+      }
+    });
+
+    async function handleDelete(clientId) {
+      if (!confirm('确定删除该客户端吗？')) return;
+      showError('');
+      try {
+        const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || '删除失败');
+        await loadClients();
+      } catch (err) {
+        showError(err.message || '删除客户端失败');
+      }
+    }
+
+    document.getElementById('modal-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!state.editingClientId) return;
+      showError('');
+      const formData = new FormData(event.currentTarget);
+      const payload = {
+        client_name: formData.get('client_name'),
+        redirect_uris: String(formData.get('redirect_uris') || '')
+          .split(/\r?\n/)
+          .map(v => v.trim())
+          .filter(Boolean),
+      };
+      if (!payload.client_name || !payload.redirect_uris.length) {
+        showError('客户端名称和回调地址均为必填。');
+        return;
+      }
+      try {
+        const res = await fetch(`/api/clients/${encodeURIComponent(state.editingClientId)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || '更新失败');
+        closeModal();
+        await loadClients();
+      } catch (err) {
+        showError(err.message || '更新客户端失败');
+      }
+    });
+
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+    document.getElementById('modal-cancel').addEventListener('click', closeModal);
+    document.getElementById('edit-modal').addEventListener('click', (event) => {
+      if (event.target === event.currentTarget) closeModal();
+    });
+
+    (async function init() {
+      await loadProfile();
+      await loadClients();
+    })();
+  </script>
+</body>
+
+</html>

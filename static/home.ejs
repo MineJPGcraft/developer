@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title><%= ui.siteTitle %>｜<%= ui.home.heading %></title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/yumeri-ui@latest/dist/yumeri-ui.css" />
+  <style>
+    body { margin: 0; background: linear-gradient(180deg, #0f172a 0%, #1f2937 100%); color: #f9fafb; font-family: 'Inter', system-ui; }
+    .shell { min-height: 100vh; display: flex; flex-direction: column; }
+    header { padding: 1.5rem 0; }
+    .container { width: min(960px, 90%); margin: 0 auto; }
+    .header-bar { display: flex; align-items: center; justify-content: space-between; gap: 2rem; flex-wrap: wrap; }
+    .brand { font-weight: 600; font-size: 1.1rem; letter-spacing: 0.08em; text-transform: uppercase; color: #cbd5f5; }
+    nav ul { list-style: none; display: flex; gap: 1.25rem; margin: 0; padding: 0; flex-wrap: wrap; }
+    nav a { color: #e2e8f0; text-decoration: none; font-size: 0.98rem; font-weight: 500; }
+    nav a:hover { text-decoration: underline; }
+    main { flex: 1; display: flex; align-items: center; padding: 4rem 0; }
+    .hero { display: flex; flex-direction: column; gap: 2rem; }
+    .hero-title { font-size: clamp(2.5rem, 6vw, 3.3rem); font-weight: 700; line-height: 1.2; }
+    .hero-desc { font-size: 1.1rem; color: #cbd5f5; max-width: 560px; }
+    .hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.85rem 1.8rem; border-radius: 999px; border: none; cursor: pointer; font-weight: 600; font-size: 1rem; }
+    .btn-primary { background: linear-gradient(135deg, #2563eb, #6366f1); color: #fff; box-shadow: 0 20px 40px rgba(99, 102, 241, 0.35); }
+    .btn-secondary { background: rgba(15, 23, 42, 0.6); color: #cbd5f5; border: 1px solid rgba(148, 163, 184, 0.4); }
+    footer { padding: 2rem 0; text-align: center; color: #94a3b8; font-size: 0.9rem; }
+    @media (max-width: 720px) {
+      .header-bar { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+      nav ul { gap: 0.75rem; }
+    }
+    @media (max-width: 640px) {
+      main { padding: 3rem 0; }
+      .hero { gap: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="container">
+        <div class="header-bar">
+          <div class="brand" id="site-title"><%= ui.siteTitle %></div>
+          <nav aria-label="主导航">
+            <ul id="nav-list">
+              <% if (ui && ui.navigation) { %>
+                <% ui.navigation.forEach(function(item){ %>
+                  <li><a href="<%= item.href %>"><%= item.label %></a></li>
+                <% }); %>
+              <% } %>
+            </ul>
+          </nav>
+        </div>
+      </div>
+    </header>
+    <main>
+      <div class="container">
+        <section class="hero" aria-labelledby="hero-title">
+          <h1 class="hero-title" id="hero-title"><%= ui.home.heading %></h1>
+          <p class="hero-desc" id="hero-desc"><%= ui.home.description %></p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" id="login-btn" href="/dashboard/login"><%= ui.home.loginButton %></a>
+            <a class="btn btn-secondary" href="/docs" id="docs-link" style="display:none;">查看接入文档</a>
+          </div>
+        </section>
+      </div>
+    </main>
+    <footer id="footer-text">OIDC 身份代理 · Powered by Yumeri</footer>
+  </div>
+
+
+</body>
+</html>

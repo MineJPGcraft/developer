@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title><%= ui.siteTitle %>｜<%= ui.overview.heading %></title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/yumeri-ui@latest/dist/yumeri-ui.css" />
+  <style>
+body{background:#f8fafc;color:#0f172a;margin:0}.app-shell{min-height:100vh;display:flex;flex-direction:column}header{background:#0f172a;color:#f8fafc}header .brand{font-weight:600;font-size:1.1rem}.header-bar{display:flex;align-items:center;justify-content:space-between;gap:2rem}nav ul{list-style:none;display:flex;gap:1.25rem;margin:0;padding:0}nav a{color:#cbd5f5;text-decoration:none;font-size:.95rem;font-weight:500}nav a:hover{text-decoration:underline}main{flex:1;padding:3rem 1rem}.container{max-width:960px;margin:0 auto}footer{padding:1.5rem 0;text-align:center;color:#64748b;font-size:.85rem}.section-title{font-size:1.6rem;margin-bottom:.5rem;font-weight:600}.section-subtitle{margin-bottom:2rem;color:#475569}.muted{color:#64748b;font-size:.95rem}.badge{display:inline-flex;align-items:center;justify-content:center;padding:.25rem .75rem;border-radius:999px;background:#0f172a;color:#f8fafc;font-size:.75rem}.announcement-list{display:flex;flex-direction:column;gap:1.25rem}.announcement{border:1px solid #e2e8f0;border-radius:14px;padding:1.5rem;background:#fff}.announcement h3{margin:0;font-size:1.1rem}.announcement time{display:block;font-size:.85rem;color:#94a3b8;margin-top:.3rem}.announcement p{margin:.75rem 0 0;color:#475569}.announcement a{display:inline-flex;align-items:center;gap:.35rem;margin-top:.75rem;color:#2563eb;text-decoration:none;font-weight:600}.grid{display:grid;gap:1.5rem}.grid-quick{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}.quick-link{border:1px solid #e2e8f0;border-radius:14px;padding:1.5rem;background:#f8fafc;transition:transform .2s,box-shadow .2s}.quick-link:hover{transform:translateY(-4px);box-shadow:0 15px 35px rgba(15,23,42,.15)}@media(max-width:640px){.header-bar{flex-direction:column;align-items:flex-start;gap:1rem}}
+    nav ul{flex-wrap:wrap}
+    @media(max-width:720px){
+      .header-bar{flex-direction:column;align-items:flex-start;gap:.75rem}
+      nav ul{gap:.75rem}
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header>
+      <div class="container" style="padding:1rem 0;">
+        <div class="header-bar">
+          <span class="brand" data-site-title><%= ui.siteTitle %></span>
+          <nav aria-label="主导航">
+            <ul id="nav-list">
+              <% if (ui && ui.navigation) { %>
+                <% ui.navigation.forEach(function(item){ %>
+                  <li><a href="<%= item.href %>"><%= item.label %></a></li>
+                <% }); %>
+              <% } %>
+            </ul>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div class="container">
+
+        <section style="margin-bottom:2rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:1.5rem; flex-wrap:wrap;">
+            <div>
+              <h2 class="section-title" id="overview-heading"><%= ui.overview.heading %></h2>
+              <p class="section-subtitle" id="overview-description"><%= ui.overview.description %></p>
+            </div>
+            <div class="muted" id="welcome-text"></div>
+          </div>
+
+          <div class="grid grid-quick" id="quick-links">
+            <a class="quick-link" href="/dashboard/oidc">
+              <div class="badge">OIDC</div>
+              <h3 style="margin:.75rem 0 0;">客户端管理</h3>
+              <p class="muted" style="margin-top:.5rem;">创建、编辑与管理你的 OIDC 客户端。</p>
+            </a>
+            <a class="quick-link" href="/dashboard/subdomains">
+              <div class="badge">域名</div>
+              <h3 style="margin:.75rem 0 0;">三级域名管理</h3>
+              <p class="muted" style="margin-top:.5rem;">申请并维护 <%= cloudflareRootDomain || '项目域' %>（二级域名）下的三级域名解析。</p>
+            </a>
+          </div>
+        </section>
+
+        <section>
+          <h2 class="section-title">最近公告</h2>
+          <p class="muted" id="announcement-hint">暂无公告。</p>
+          <div class="announcement-list" id="announcement-list"></div>
+        </section>
+
+      </div>
+    </main>
+
+    <footer id="footer-text"><%= ui.siteTitle %> · Powered by Yumeri</footer>
+  </div>
+
+  <script>
+    const state={ui:null,announcements:[],profile:null};
+
+
+
+    function renderAnnouncements(){
+      const list=document.getElementById('announcement-list');
+      const hint=document.getElementById('announcement-hint');
+      if(!list||!hint)return;
+      list.innerHTML='';
+      if(!state.announcements.length){
+        hint.style.display='block';
+        return;
+      }
+      hint.style.display='none';
+      state.announcements.forEach(item=>{
+        const wrap=document.createElement('article');
+        wrap.className='announcement';
+        const title=document.createElement('h3');
+        title.textContent=item.title;wrap.appendChild(title);
+        if(item.publishedAt){
+          const time=document.createElement('time');
+          time.dateTime=item.publishedAt;
+          time.textContent=new Date(item.publishedAt).toLocaleString('zh-CN');
+          wrap.appendChild(time);
+        }
+        if(item.summary){
+          const desc=document.createElement('p');
+          desc.textContent=item.summary;wrap.appendChild(desc);
+        }
+        if(item.link){
+          const link=document.createElement('a');
+          link.href=item.link;link.target='_blank';
+          link.rel='noopener noreferrer';
+          link.textContent='查看详情 →';
+          wrap.appendChild(link);
+        }
+        list.appendChild(wrap);
+      });
+    }
+
+
+
+    async function loadProfile(){
+      try{
+        const res=await fetch('/api/profile');
+        const data=await res.json();
+        if(!data.success)return;
+        state.profile=data.data;
+        const welcome=document.getElementById('welcome-text');
+        if(welcome)welcome.innerHTML=`欢迎回来，<strong>${state.profile.name}</strong>`;
+      }catch(err){console.warn('无法获取个人资料:',err);}
+    }
+
+    async function loadAnnouncements(){
+      try{
+        const res=await fetch('/api/announcements');
+        const data=await res.json();
+        if(!data.success)return;
+        state.announcements=data.data||[];
+        renderAnnouncements();
+      }catch(err){console.warn('无法加载公告:',err);}
+    }
+
+    (async function init(){
+      await Promise.all([loadProfile(),loadAnnouncements()]);
+    })();
+  </script>
+</body>
+</html>

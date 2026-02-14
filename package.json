@@ -1,0 +1,34 @@
+{
+  "private": true,
+  "name": "oidc-app-yumeri",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node dist/index.js",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "packageManager": "yarn@4.11.0",
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@types/oidc-provider": "^9",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@yumerijs/ejs-renderer": "^1.0.0",
+    "acme-client": "^5.1.0",
+    "node-fetch": "2",
+    "oidc-provider": "^9.5.2",
+    "pg": "^8.11.5",
+    "reflect-metadata": "^0.1.13",
+    "sqlite3": "^5.1.7",
+    "typeorm": "^0.3.20",
+    "yumeri": "^2.2.1",
+    "yumeri-plugin-proxy-agent": "^1.2.2"
+  }
+}
