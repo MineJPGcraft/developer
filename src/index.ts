@@ -62,9 +62,8 @@ async function main() {
     });
 
     // Load plugin
-    const sldModule = require('./modules/sld');
-    const oidcModule = require('./modules/oidc');
-    const proxy = require('yumeri-plugin-proxy-agent');
+    const sldModule = await import('./modules/sld');
+    const oidcModule = await import('./modules/oidc');
     const sldConfig = {
         maxPerUser: config.sld.maxPerUser,
         reserved: config.sld.reserved,
@@ -74,8 +73,8 @@ async function main() {
     sldctx.renderer = ctx.renderer;
     const oidcctx = ctx.fork('oidc');
     oidcctx.renderer = ctx.renderer;
-    core.plugin(sldModule, sldctx, sldConfig);
-    core.plugin(oidcModule, oidcctx, {});
+    core.plugin(sldModule as any, sldctx, sldConfig);
+    core.plugin(oidcModule as any, oidcctx, {});
 
     // Start the server
     core.runCore();
