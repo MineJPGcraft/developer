@@ -75,7 +75,7 @@ devPortalOidc:
   clientSecret: your-dev-portal-client-secret
   authorizationEndpoint: https://sso.example.org/oauth/authorize
   tokenEndpoint: https://sso.example.org/oauth/token
-  jwksUri: https://sso.example.org/.well-known/jwks
+  jwksUri: https://sso.example.org/.well-known/jwks.json
   scope: openid profile email
   tokenEndpointAuthMethod: client_secret_basic
 
@@ -125,7 +125,7 @@ certificates:
 ### 关键说明
 
 - `admin.ids`: 管理员用户的 `sub` 列表，用于访问 `/admin` 管理面板。
-- `devPortalOidc`: 开发者门户登录的上游 OIDC 配置。
+- `devPortalOidc`: 开发者门户登录的上游 OIDC 配置（必填，当前不支持内置登录）。
 - `server.userIssuer` / `server.devIssuer`: 分别用于“标准用户登录域名”和“开发者仪表盘域名”，两者可不同；服务会强制按域名分流路由。
 - `server.userHosts` / `server.devHosts`: 可选域名白名单；不配置时会从对应 issuer 自动推导。
 - `cloudflare.domains`: 可选二级域名列表，每个域名可以使用独立的 Cloudflare Token。
@@ -137,3 +137,8 @@ certificates:
 
 - 开发者仪表盘登录回调：`${server.devIssuer}/dashboard/callback`
 - 普通 OIDC 登录交互回调：`${server.userIssuer}/interaction/callback`
+
+### 管理员登录流程测试
+
+应用启动时会自动创建一个测试客户端（`admin-oidc-test`），并在每次启动时刷新 `clientSecret`。  
+管理员进入 `/admin` 可以看到测试客户端的 ID/Secret，并通过“开始测试登录”按钮验证标准登录流程。
