@@ -124,3 +124,8 @@ certificates:
 - `cloudflare.defaultDomain`: 默认选中的二级域名。
 - `sld.reserved`: 保留前缀（不可注册）。
 - `sld.blocked`: 黑名单前缀（不可注册）。
+
+### 回调地址说明
+
+- 开发者仪表盘登录回调：`/dashboard/callback`
+- 普通 OIDC 登录交互回调：`/interaction/callback`
