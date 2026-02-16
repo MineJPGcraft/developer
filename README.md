@@ -9,6 +9,7 @@
 - 可通过环境变量覆盖：`CONFIG_PATH=/data/config.yaml`
 
 建议将配置文件挂载到 `/data/config.yaml`（容器内路径），便于部署与持久化。
+静态文件根目录默认使用 `STATIC_ROOT=/data/static`，请确保容器内已挂载该目录。
 
 ### 完整示例
 
@@ -120,6 +121,13 @@ certificates:
   acmeServer: https://dv.acme-v02.api.pki.goog/directory
   dnsProvider: cloudflare
   propagationSeconds: 180
+
+staticSites:
+  rootDir: /data/static
+  maxSpaceBytes: 536870912
+  maxTotalBytes: 2147483648
+  maxSpacesPerUser: 3
+  cnameTarget: static.example.com
 ```
 
 ### 关键说明
@@ -128,6 +136,7 @@ certificates:
 - `devPortalOidc`: 开发者门户登录的上游 OIDC 配置（必填，当前不支持内置登录）。
 - `server.userIssuer` / `server.devIssuer`: 分别用于“标准用户登录域名”和“开发者仪表盘域名”，两者可不同；服务会强制按域名分流路由。
 - `server.userHosts` / `server.devHosts`: 可选域名白名单；不配置时会从对应 issuer 自动推导。
+- `staticSites`: 静态空间配置（根目录需要在 `/data` 下，推荐通过 `STATIC_ROOT` 覆盖）。
 - `cloudflare.domains`: 可选二级域名列表，每个域名可以使用独立的 Cloudflare Token。
 - `cloudflare.defaultDomain`: 默认选中的二级域名。
 - `sld.reserved`: 保留前缀（不可注册）。
@@ -142,3 +151,9 @@ certificates:
 
 应用启动时会自动创建一个测试客户端（`admin-oidc-test`），并在每次启动时刷新 `clientSecret`。  
 管理员进入 `/admin` 可以看到测试客户端的 ID/Secret，并通过“开始测试登录”按钮验证标准登录流程。
+
+### 静态托管说明
+
+- 静态空间仅允许已登录用户管理，支持文件上传、目录管理与域名绑定。
+- 域名绑定支持 `*.example.com` 通配符，若与他人通配符产生交集会被拒绝。
+- 用户需自行将域名 CNAME 指向 `staticSites.cnameTarget` 对应地址。

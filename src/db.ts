@@ -7,6 +7,7 @@ import { UserEntity } from './entities/UserEntity';
 import { SubdomainEntity } from './entities/SubdomainEntity';
 import { SubdomainRetentionEntity } from './entities/SubdomainRetentionEntity';
 import { ADMIN_TEST_CLIENT_ID } from './constants';
+import { StaticSpaceEntity } from './entities/StaticSpaceEntity';
 
 export interface Client {
     client_id: string;
@@ -57,6 +58,16 @@ export interface Certificate {
     updatedAt: Date;
 }
 
+export interface StaticSpace {
+    id: string;
+    owner: string;
+    name: string;
+    domains: string[];
+    usedBytes: number;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
 const SUBDOMAIN_RETENTION_DAYS = 90;
 
 const logger = new Logger('Database');
@@ -86,9 +97,28 @@ function toClient(entity: ClientEntity): Client {
     };
 }
 
+function toStaticSpace(entity: StaticSpaceEntity): StaticSpace {
+    const domains = parseJsonArray(entity.domains_raw);
+    const usedBytes = Number(entity.used_bytes ?? 0);
+    return {
+        id: entity.id,
+        owner: entity.owner,
+        name: entity.name,
+        domains,
+        usedBytes: Number.isFinite(usedBytes) ? usedBytes : 0,
+        createdAt: entity.created_at,
+        updatedAt: entity.updated_at,
+    };
+}
+
 async function clientRepository() {
     const ds = await getDataSource();
     return ds.getRepository(ClientEntity);
+}
+
+async function staticSpaceRepository() {
+    const ds = await getDataSource();
+    return ds.getRepository(StaticSpaceEntity);
 }
 
 async function userRepository() {
@@ -510,6 +540,71 @@ export const deleteClientAdmin = async (clientId: string) => {
     const entity = await repo.findOne({ where: { client_id: clientId } });
     if (!entity) {
         throw new Error('客户端不存在');
+    }
+    await repo.remove(entity);
+};
+
+export const listStaticSpacesByOwner = async (owner: string): Promise<StaticSpace[]> => {
+    const repo = await staticSpaceRepository();
+    const entities = await repo.find({ where: { owner }, order: { created_at: 'ASC' } });
+    return entities.map(toStaticSpace);
+};
+
+export const listAllStaticSpaces = async (): Promise<StaticSpace[]> => {
+    const repo = await staticSpaceRepository();
+    const entities = await repo.find({ order: { created_at: 'ASC' } });
+    return entities.map(toStaticSpace);
+};
+
+export const findStaticSpaceById = async (id: string): Promise<StaticSpace | undefined> => {
+    const repo = await staticSpaceRepository();
+    const entity = await repo.findOne({ where: { id } });
+    return entity ? toStaticSpace(entity) : undefined;
+};
+
+export const findStaticSpaceByIdAndOwner = async (id: string, owner: string): Promise<StaticSpace | undefined> => {
+    const repo = await staticSpaceRepository();
+    const entity = await repo.findOne({ where: { id, owner } });
+    return entity ? toStaticSpace(entity) : undefined;
+};
+
+export const createStaticSpace = async (owner: string, name: string): Promise<StaticSpace> => {
+    const repo = await staticSpaceRepository();
+    const entity = repo.create({
+        owner,
+        name,
+        domains_raw: JSON.stringify([]),
+        used_bytes: '0',
+    });
+    await repo.save(entity);
+    return toStaticSpace(entity);
+};
+
+export const updateStaticSpaceDomains = async (id: string, domains: string[]): Promise<void> => {
+    const repo = await staticSpaceRepository();
+    const entity = await repo.findOne({ where: { id } });
+    if (!entity) {
+        throw new Error('空间不存在');
+    }
+    entity.domains_raw = JSON.stringify(domains);
+    await repo.save(entity);
+};
+
+export const updateStaticSpaceUsage = async (id: string, usedBytes: number): Promise<void> => {
+    const repo = await staticSpaceRepository();
+    const entity = await repo.findOne({ where: { id } });
+    if (!entity) {
+        throw new Error('空间不存在');
+    }
+    entity.used_bytes = String(Math.max(0, Math.floor(usedBytes)));
+    await repo.save(entity);
+};
+
+export const deleteStaticSpace = async (id: string, owner: string): Promise<void> => {
+    const repo = await staticSpaceRepository();
+    const entity = await repo.findOne({ where: { id, owner } });
+    if (!entity) {
+        throw new Error('空间不存在');
     }
     await repo.remove(entity);
 };

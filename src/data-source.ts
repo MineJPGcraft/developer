@@ -5,6 +5,7 @@ import { ClientEntity } from './entities/ClientEntity';
 import { UserEntity } from './entities/UserEntity';
 import { SubdomainEntity } from './entities/SubdomainEntity';
 import { SubdomainRetentionEntity } from './entities/SubdomainRetentionEntity';
+import { StaticSpaceEntity } from './entities/StaticSpaceEntity';
 
 let dataSource: DataSource | null = null;
 
@@ -14,7 +15,7 @@ async function createDataSource(): Promise<DataSource> {
 
     const options = {
         type,
-        entities: [ClientEntity, UserEntity, SubdomainEntity, SubdomainRetentionEntity],
+        entities: [ClientEntity, UserEntity, SubdomainEntity, SubdomainRetentionEntity, StaticSpaceEntity],
         synchronize: true,
         logging: false,
     } as any;

@@ -64,6 +64,7 @@ async function main() {
     // Load plugin
     const sldModule = await import('./modules/sld');
     const oidcModule = await import('./modules/oidc');
+    const staticModule = await import('./modules/static-sites');
     const sldConfig = {
         maxPerUser: config.sld.maxPerUser,
         reserved: config.sld.reserved,
@@ -73,8 +74,12 @@ async function main() {
     sldctx.renderer = ctx.renderer;
     const oidcctx = ctx.fork('oidc');
     oidcctx.renderer = ctx.renderer;
+    const staticctx = ctx.fork('static');
+    staticctx.renderer = ctx.renderer;
+    core.use('static-host', staticModule.createPublicStaticMiddleware());
     core.plugin(sldModule as any, sldctx, sldConfig);
     core.plugin(oidcModule as any, oidcctx, {});
+    core.plugin(staticModule as any, staticctx, {});
 
     // Start the server
     core.runCore();

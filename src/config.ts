@@ -125,6 +125,13 @@ export interface AppConfig {
         propagationSeconds?: number;
         accountDir?: string;
     };
+    staticSites: {
+        rootDir: string;
+        maxSpaceBytes: number;
+        maxTotalBytes: number;
+        maxSpacesPerUser: number;
+        cnameTarget: string;
+    };
 }
 
 let cachedConfig: AppConfig | null = null;
@@ -283,6 +290,7 @@ function loadConfig(): AppConfig {
     const navigationRaw = (ui.navigation && typeof ui.navigation === 'object') ? ui.navigation : {};
     const announcementsRaw = Array.isArray(ui.announcements) ? ui.announcements : [];
     const cloudflare = parsed.cloudflare || {};
+    const staticSites = parsed.staticSites || {};
     const cloudflareDomainsRaw = Array.isArray(cloudflare.domains) ? cloudflare.domains : [];
 
     const defaultIssuer = String(server.issuer ?? `http://localhost:${server.port ?? 8080}`);
@@ -307,6 +315,11 @@ function loadConfig(): AppConfig {
     const userHosts = parseHosts(server.userHosts);
     const devHosts = parseHosts(server.devHosts);
 
+    const staticRoot = process.env.STATIC_ROOT || String(staticSites.rootDir || '/data/static');
+    const toPositiveNumber = (value: unknown, fallback: number) => {
+        const num = Number(value);
+        return Number.isFinite(num) && num > 0 ? num : fallback;
+    };
     const config: AppConfig = {
         server: {
             port: Number(server.port ?? 8080),
@@ -463,6 +476,13 @@ function loadConfig(): AppConfig {
             propagationSeconds: certificates.propagationSeconds !== undefined ? Number(certificates.propagationSeconds) : undefined,
             accountDir: certificates.accountDir ? String(certificates.accountDir) : './certaccounts',
         },
+        staticSites: {
+            rootDir: staticRoot,
+            maxSpaceBytes: toPositiveNumber(staticSites.maxSpaceBytes, 536870912),
+            maxTotalBytes: toPositiveNumber(staticSites.maxTotalBytes, 2147483648),
+            maxSpacesPerUser: toPositiveNumber(staticSites.maxSpacesPerUser, 3),
+            cnameTarget: String(staticSites.cnameTarget ?? ''),
+        },
     };
 
     if (config.ui.navigation.length === 0) {
@@ -470,6 +490,7 @@ function loadConfig(): AppConfig {
             { label: '总览', href: '/dashboard' },
             { label: 'OIDC 客户端', href: '/dashboard/oidc' },
             { label: '三级域名管理', href: '/dashboard/subdomains' },
+            { label: '静态托管', href: '/dashboard/static' },
             { label: '证书申请', href: '/dashboard/certificates' },
         ];
     }

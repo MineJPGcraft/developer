@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>
+    <%= ui.siteTitle %>｜静态托管
+  </title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/yumeri-ui@latest/dist/yumeri-ui.css" />
+  <style>
+    /* --- 基础布局重置 --- */
+    body {
+      background: #fff;
+      color: #1f2933;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /* 强制 app-shell 不允许溢出屏幕宽度 */
+    .app-shell {
+      width: 100%;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #111827;
+      color: #f9fafb;
+    }
+
+    header .brand {
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+
+    .header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+
+    nav ul {
+      list-style: none;
+      display: flex;
+      gap: 1.25rem;
+      margin: 0;
+      padding: 0;
+      flex-wrap: wrap;
+    }
+
+    nav a {
+      color: #e2e8f0;
+      text-decoration: none;
+      font-size: .95rem;
+      font-weight: 500;
+    }
+
+    nav a:hover {
+      text-decoration: underline;
+    }
+
+    main {
+      padding: 1.5rem 1rem;
+    }
+
+    /* 容器响应式宽度控制 */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .section-title {
+      font-size: 1.4rem;
+      margin-bottom: .5rem;
+      font-weight: 600;
+    }
+
+    .muted {
+      color: #64748b;
+      font-size: .95rem;
+    }
+
+    /* --- Card 核心修复：防止撑破 --- */
+    .card {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+      background: #fff;
+      min-width: 0;
+      /* 关键：允许子元素在 Flex/Grid 中收缩 */
+      overflow: hidden;
+      /* 关键：禁止内部内容溢出 Card 边界 */
+    }
+
+    /* 响应式网格 */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 1.5rem;
+    }
+
+    /* --- 文件表格滚动容器 --- */
+    .file-table-container {
+      margin-top: 1rem;
+      width: 100%;
+      /* 填满父级 Card */
+      overflow-x: auto;
+      /* 开启内部横向滚动 */
+      -webkit-overflow-scrolling: touch;
+      border: 1px solid #f1f5f9;
+      border-radius: 8px;
+    }
+
+    .file-table {
+      width: 100%;
+      min-width: 600px;
+      /* 保证内部有滚动空间 */
+      border-collapse: collapse;
+      table-layout: fixed;
+      /* 锁定列宽，不被内容强行撑大 */
+    }
+
+    .file-table th,
+    .file-table td {
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+      padding: .75rem .5rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      /* 长文件名显示省略号 */
+    }
+
+    /* 定义各列比例 */
+    .file-table th:nth-child(1) {
+      width: 40px;
+    }
+
+    /* Checkbox */
+    .file-table th:nth-child(2) {
+      width: 40%;
+    }
+
+    /* 名称 */
+    .file-table th:nth-child(3) {
+      width: 15%;
+    }
+
+    /* 类型 */
+    .file-table th:nth-child(4) {
+      width: 20%;
+    }
+
+    /* 大小 */
+    .file-table th:nth-child(5) {
+      width: 20%;
+    }
+
+    /* 更新时间 */
+
+    .file-table tr.selected {
+      background: #eff6ff;
+    }
+
+    .file-table tr:hover {
+      background: #f8fafc;
+      cursor: pointer;
+    }
+
+    /* --- 其他组件 --- */
+    .space-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .space-item {
+      padding: .6rem .8rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      margin-bottom: .6rem;
+      cursor: pointer;
+    }
+
+    .space-item.active {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+
+    .actions {
+      display: flex;
+      gap: .5rem;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .dropzone {
+      border: 2px dashed #cbd5f5;
+      border-radius: 12px;
+      padding: 1.2rem;
+      text-align: center;
+      background: #f8fafc;
+    }
+
+    .dropzone.dragover {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      background: #e2e8f0;
+      padding: .25rem .6rem;
+      border-radius: 999px;
+      font-size: 0.85rem;
+    }
+
+    .path {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: .85rem;
+    }
+
+    /* --- 进度条提示框 (Task Toast) --- */
+    #task-toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 1.5rem;
+      width: min(320px, 90vw);
+      /* 手机上自动缩小宽度 */
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+      padding: 1.2rem;
+      z-index: 2000;
+      display: none;
+    }
+
+    .progress-bar {
+      height: 8px;
+      background: #e2e8f0;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .progress-inner {
+      height: 100%;
+      background: #2563eb;
+      width: 0%;
+      transition: width 0.3s;
+    }
+
+    /* --- 响应式断点 --- */
+    @media(max-width:960px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      main {
+        padding: 1rem 0.5rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-shell">
+    <header>
+      <div class="container" style="padding:1rem 0;">
+        <div class="header-bar">
+          <span class="brand">
+            <%= ui.siteTitle %>
+          </span>
+          <nav>
+            <ul>
+              <% if (ui && ui.navigation) { %>
+                <% ui.navigation.forEach(function(item){ %>
+                  <li><a href="<%= item.href %>">
+                      <%= item.label %>
+                    </a></li>
+                  <% }); %>
+                    <% } %>
+            </ul>
+          </nav>
+        </div>
+      </div>
+    </header>
+    <main>
+      <div class="container">
+        <h2 class="section-title">静态托管</h2>
+        <p class="muted">每个空间可绑定多个域名（支持通配符）。CNAME 指向：<strong>
+            <%= cnameTarget || '（未配置）' %>
+          </strong></p>
+
+        <div class="grid">
+          <div class="card">
+            <h3 class="section-title" style="font-size:1.1rem;">我的空间</h3>
+            <ul class="space-list" id="space-list"></ul>
+            <form id="space-create-form" class="yui-form" novalidate>
+              <div class="yui-form__group">
+                <label for="space-name">新空间名称</label>
+                <input class="input" id="space-name" name="name" required />
+              </div>
+              <button type="submit" class="btn btn-primary" style="width:100%">创建空间</button>
+            </form>
+            <p class="muted" id="space-error" style="color:#ef4444;display:none;"></p>
+          </div>
+
+          <div class="card">
+            <h3 class="section-title" style="font-size:1.1rem;">文件管理</h3>
+            <div class="actions" style="margin-bottom:.5rem;">
+              <button class="btn btn-secondary btn-sm" id="btn-new-folder" type="button">新建目录</button>
+              <button class="btn btn-secondary btn-sm" id="btn-new-file" type="button">新建文件</button>
+              <button class="btn btn-secondary btn-sm" id="btn-edit-file" type="button">编辑</button>
+              <button class="btn btn-secondary btn-sm" id="btn-rename" type="button">重命名</button>
+              <button class="btn btn-secondary btn-sm" id="btn-delete" type="button">删除</button>
+              <button class="btn btn-primary btn-sm" id="btn-zip" type="button">Zip压缩</button>
+              <button class="btn btn-primary btn-sm" id="btn-unzip" type="button">解压到...</button>
+              <button class="btn btn-secondary btn-sm" id="btn-refresh" type="button">刷新</button>
+              <span class="chip">当前：<span class="path" id="current-path">/</span></span>
+            </div>
+            <div class="dropzone" id="dropzone">
+              拖拽上传，或 <label style="color:#2563eb; cursor:pointer;">选择文件<input type="file" id="file-input"
+                  style="display:none;" multiple /></label>
+            </div>
+            <div style="margin-top:1rem; overflow-x: auto;">
+              <table class="file-table">
+                <thead>
+                  <tr>
+                    <th style="width:30px;"><input type="checkbox" id="select-all"></th>
+                    <th>名称</th>
+                    <th>类型</th>
+                    <th>大小</th>
+                    <th>更新时间</th>
+                  </tr>
+                </thead>
+                <tbody id="file-table"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="section-title" style="font-size:1.1rem;">域名绑定</h3>
+          <div class="muted" id="domain-list" style="margin-bottom: 1rem;"></div>
+          <form id="domain-form" class="yui-form" novalidate>
+            <div class="yui-form__group">
+              <label for="domain-input">绑定域名（支持 *.example.com）</label>
+              <input class="input" id="domain-input" name="domain" placeholder="例如：static.example.com" required />
+            </div>
+            <div class="actions">
+              <button type="submit" class="btn btn-primary">绑定域名</button>
+              <button type="button" class="btn btn-secondary" id="domain-remove">解绑域名</button>
+            </div>
+          </form>
+          <p class="muted" id="domain-error" style="color:#ef4444;display:none;"></p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="task-toast">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <strong id="task-title" style="font-size: 0.95rem;">处理中...</strong>
+      <span id="task-percent" style="font-weight: bold; color: #2563eb;">0%</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-inner" id="task-progress"></div>
+    </div>
+    <p class="muted" id="task-status" style="margin-top:8px; font-size:12px;"></p>
+  </div>
+
+  <div id="editor-modal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,.55); z-index:1200;">
+    <div
+      style="background:#fff; margin:4vh auto; width:min(1100px,94%); height:92vh; border-radius:12px; display:flex; flex-direction:column;">
+      <div
+        style="padding:1rem 1.2rem; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <strong>在线编辑器</strong>
+          <span class="muted" id="editor-path" style="margin-left:.6rem;"></span>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary btn-sm" id="editor-save">保存</button>
+          <button class="btn btn-secondary btn-sm" id="editor-close">关闭</button>
+        </div>
+      </div>
+      <div id="editor-container" style="flex:1 1 auto;"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
+  <script>
+    const state = {
+      spaces: [],
+      currentSpace: null,
+      currentPath: '',
+      selectedItems: new Set() // 存储多选的文件名
+    };
+
+    function showError(id, msg) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (msg) { el.style.display = 'block'; el.textContent = msg; }
+      else { el.style.display = 'none'; el.textContent = ''; }
+    }
+
+    async function api(url, options) {
+      const res = await fetch(url, options);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || '请求失败');
+      return data.data;
+    }
+
+    // --- 任务进度监听逻辑 ---
+    async function trackTask(taskId, title) {
+      const toast = document.getElementById('task-toast');
+      const progress = document.getElementById('task-progress');
+      const percentText = document.getElementById('task-percent');
+      const statusText = document.getElementById('task-status');
+
+      toast.style.display = 'block';
+      document.getElementById('task-title').textContent = title;
+
+      const timer = setInterval(async () => {
+        try {
+          const task = await api(`/api/static/tasks/${taskId}`);
+          const p = task.progress || 0;
+          progress.style.width = p + '%';
+          percentText.textContent = p + '%';
+          statusText.textContent = task.message || '处理中...';
+
+          // 关键修改：完成后 1.5 秒自动隐藏
+          if (task.status === 'completed' || p >= 100) {
+            clearInterval(timer);
+            statusText.textContent = '完成！列表已更新';
+            await loadFiles(state.currentPath); // 自动刷新列表
+            setTimeout(() => {
+              toast.style.display = 'none';
+              progress.style.width = '0%'; // 重置进度条
+            }, 1500);
+          } else if (task.status === 'failed') {
+            clearInterval(timer);
+            alert('错误: ' + task.error);
+            toast.style.display = 'none';
+          }
+        } catch (e) {
+          clearInterval(timer);
+          toast.style.display = 'none';
+        }
+      }, 1000);
+    }
+
+    document.getElementById('btn-refresh').onclick = async () => {
+      const btn = document.getElementById('btn-refresh');
+      btn.disabled = true;
+      btn.textContent = '刷新中...';
+      try {
+        await loadFiles(state.currentPath);
+        await loadSpaces();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '刷新';
+      }
+    };
+
+    // --- 空间管理 ---
+    async function loadSpaces() {
+      state.spaces = await api('/api/static/spaces');
+      if (!state.currentSpace && state.spaces.length) {
+        state.currentSpace = state.spaces[0];
+      }
+      renderSpaces();
+      if (state.currentSpace) {
+        await loadFiles('');
+        renderDomains();
+      }
+    }
+
+    function renderSpaces() {
+      const list = document.getElementById('space-list');
+      list.innerHTML = '';
+      state.spaces.forEach(space => {
+        const li = document.createElement('li');
+        li.className = 'space-item' + (state.currentSpace && state.currentSpace.id === space.id ? ' active' : '');
+        li.textContent = `${space.name} (${(space.usedBytes / 1024 / 1024).toFixed(1)} MB)`;
+        li.onclick = async () => {
+          state.currentSpace = space;
+          state.currentPath = '';
+          renderSpaces();
+          await loadFiles('');
+          renderDomains();
+        };
+        list.appendChild(li);
+      });
+    }
+
+    // --- 文件管理 ---
+    async function loadFiles(path) {
+      if (!state.currentSpace) return;
+      state.currentPath = path || '';
+      state.selectedItems.clear();
+      document.getElementById('select-all').checked = false;
+      document.getElementById('current-path').textContent = '/' + (state.currentPath || '');
+
+      const data = await api(`/api/static/spaces/${encodeURIComponent(state.currentSpace.id)}/tree?path=${encodeURIComponent(state.currentPath)}`);
+      const tbody = document.getElementById('file-table');
+      tbody.innerHTML = '';
+
+      if (state.currentPath) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td></td><td colspan="4">.. (返回上级)</td>`;
+        tr.onclick = () => {
+          const parts = state.currentPath.split('/').filter(Boolean);
+          parts.pop();
+          loadFiles(parts.join('/'));
+        };
+        tbody.appendChild(tr);
+      }
+
+      data.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.dataset.name = item.name;
+        tr.dataset.type = item.type;
+        tr.innerHTML = `
+          <td><input type="checkbox" class="file-check" data-name="${item.name}"></td>
+          <td>${item.type === 'dir' ? '📁' : '📄'} ${item.name}</td>
+          <td>${item.type}</td>
+          <td>${item.type === 'file' ? (item.size / 1024).toFixed(1) + ' KB' : '-'}</td>
+          <td>${item.updatedAt || '-'}</td>
+        `;
+
+        tr.onclick = (e) => {
+          if (e.target.type === 'checkbox') return;
+          // 行点击选中切换
+          const cb = tr.querySelector('.file-check');
+          cb.checked = !cb.checked;
+          updateSelection(item.name, cb.checked, tr);
+        };
+
+        tr.querySelector('.file-check').onclick = (e) => {
+          updateSelection(item.name, e.target.checked, tr);
+        };
+
+        // 双击进入目录
+        tr.ondblclick = () => {
+          if (item.type === 'dir') {
+            loadFiles((state.currentPath ? state.currentPath + '/' : '') + item.name);
+          }
+        };
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    function updateSelection(name, isChecked, row) {
+      if (isChecked) {
+        state.selectedItems.add(name);
+        row.classList.add('selected');
+      } else {
+        state.selectedItems.delete(name);
+        row.classList.remove('selected');
+      }
+    }
+
+    function getSelectedItem() {
+      const first = state.selectedItems.values().next().value;
+      if (!first) return null;
+      // 兼容旧逻辑，返回第一个选中的详情
+      const row = document.querySelector(`.file-check[data-name="${first}"]`).closest('tr');
+      return { name: first, type: row.dataset.type };
+    }
+
+    // --- 域名绑定渲染 ---
+    async function renderDomains() {
+      const box = document.getElementById('domain-list');
+      if (!state.currentSpace) {
+        box.textContent = '请先选择空间';
+        return;
+      }
+      const domains = state.currentSpace.domains || [];
+      box.innerHTML = domains.length ? domains.map(d => `<span class="chip">${d}</span>`).join(' ') : '暂无绑定域名';
+    }
+
+    // --- 按钮事件 ---
+    document.getElementById('select-all').onchange = (e) => {
+      const checked = e.target.checked;
+      document.querySelectorAll('.file-check').forEach(cb => {
+        cb.checked = checked;
+        const row = cb.closest('tr');
+        updateSelection(cb.dataset.name, checked, row);
+      });
+    };
+
+    document.getElementById('btn-zip').onclick = async () => {
+      if (state.selectedItems.size === 0) return alert('请选择要压缩的文件或目录');
+      const outputName = prompt('请输入压缩文件名', 'archive.zip');
+      if (!outputName) return;
+      const paths = Array.from(state.selectedItems).map(n => (state.currentPath ? state.currentPath + '/' : '') + n);
+      try {
+        const res = await api(`/api/static/spaces/${encodeURIComponent(state.currentSpace.id)}/zip`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paths, outputName })
+        });
+        trackTask(res.taskId, '正在生成压缩包');
+      } catch (err) { alert(err.message); }
+    };
+
+    document.getElementById('btn-unzip').onclick = async () => {
+      const item = getSelectedItem();
+      if (!item || !item.name.endsWith('.zip')) return alert('请选择一个 .zip 文件进行解压');
+      const targetDir = prompt('请输入解压目标目录 (留空为当前目录)', state.currentPath);
+      const zipPath = (state.currentPath ? state.currentPath + '/' : '') + item.name;
+      try {
+        const res = await api(`/api/static/spaces/${encodeURIComponent(state.currentSpace.id)}/unzip`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: zipPath, targetDir })
+        });
+        trackTask(res.taskId, '正在解压文件');
+      } catch (err) { alert(err.message); }
+    };
+
+    // --- 上传、删除、域名等逻辑 ---
+    async function uploadFile(file) {
+      if (!state.currentSpace) return;
+      const form = new FormData();
+      form.append('file', file);
+      await fetch(`/api/static/spaces/${encodeURIComponent(state.currentSpace.id)}/upload?path=${encodeURIComponent(state.currentPath)}`, { method: 'POST', body: form });
+      await loadSpaces();
+    }
+
+    document.getElementById('btn-delete').onclick = async () => {
+      if (state.selectedItems.size === 0) return alert('请先勾选要删除的项');
+      if (!confirm(`确定删除这 ${state.selectedItems.size} 项吗？`)) return;
+      for (let name of state.selectedItems) {
+        const target = (state.currentPath ? state.currentPath + '/' : '') + name;
+        await api(`/api/static/spaces/${encodeURIComponent(state.currentSpace.id)}/item?path=${encodeURIComponent(target)}`, { method: 'DELETE' });
+      }
+      await loadFiles(state.currentPath);
+      await loadSpaces();
+    };
+
+    // (省略重复的 editorInstance 初始化逻辑，与你原代码一致)
+    let editorInstance = null;
+    let editorReady = false;
+    let editorPath = '';
+
+    function getLanguageByPath(filePath) {
+      const ext = (filePath.split('.').pop() || '').toLowerCase();
+      const map = { 'html': 'html', 'css': 'css', 'js': 'javascript', 'json': 'json', 'md': 'markdown' };
+      return map[ext] || 'plaintext';
+    }
+
+    function openEditor(path, content) {
+      editorPath = path;
+      document.getElementById('editor-path').textContent = path;
+      document.getElementById('editor-modal').style.display = 'block';
+      if (!editorReady) {
+        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
+          editorReady = true;
+          editorInstance = monaco.editor.create(document.getElementById('editor-container'), {
+            value: content || '',
+            language: getLanguageByPath(path),
+            theme: 'vs',
+            automaticLayout: true,
+          });
+        });
+      } else {
+        const model = monaco.editor.createModel(content || '', getLanguageByPath(path));
+        editorInstance.setModel(model);
+      }
+    }
+
+    document.getElementById('btn-edit-file').onclick = async () => {
+      const item = getSelectedItem();
+      if (!item || item.type !== 'file') return alert('请选择一个文件进行编辑');
+      const target = (state.currentPath ? state.currentPath + '/' : '') + item.name;
+      const data = await api(`/api/static/spaces/${encodeURIComponent(state.currentSpace.id)}/file?path=${encodeURIComponent(target)}`);
+      openEditor(target, data.content);
+    };
+
+    document.getElementById('editor-save').onclick = async () => {
+      const content = editorInstance.getValue();
+      await api(`/api/static/spaces/${encodeURIComponent(state.currentSpace.id)}/file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: editorPath, content })
+      });
+      document.getElementById('editor-modal').style.display = 'none';
+      await loadFiles(state.currentPath);
+    };
+
+    document.getElementById('editor-close').onclick = () => document.getElementById('editor-modal').style.display = 'none';
+
+    // 域名处理逻辑回复
+    document.getElementById('domain-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      showError('domain-error', '');
+      const domain = document.getElementById('domain-input').value;
+      try {
+        const updated = await api(`/api/static/spaces/${encodeURIComponent(state.currentSpace.id)}/domains`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain })
+        });
+        state.currentSpace.domains = updated;
+        renderDomains();
+      } catch (err) { showError('domain-error', err.message); }
+    });
+
+    document.getElementById('domain-remove').onclick = async () => {
+      const domain = prompt('请输入要解绑的域名');
+      if (!domain) return;
+      const updated = await api(`/api/static/spaces/${encodeURIComponent(state.currentSpace.id)}/domains`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain })
+      });
+      state.currentSpace.domains = updated;
+      renderDomains();
+    };
+
+    // 初始化加载
+    (async () => { await loadSpaces(); })();
+  </script>
+</body>
+
+</html>
