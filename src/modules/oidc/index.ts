@@ -6,6 +6,7 @@ import fs from 'fs';
 import fetch from 'node-fetch';
 import { URL, URLSearchParams } from 'url';
 import { IncomingMessage, ServerResponse } from 'http';
+import { randomBytes } from 'crypto';
 import * as jose from 'jose';
 import getOidcProvider from '../../oidc';
 import { consentPage } from '../../views';
@@ -206,6 +207,9 @@ function buildDevPortalMetadata(session: Session) {
 export function apply(ctx: Context) {
     const oidcPromise = getOidcProvider();
     const oidcCallbackPromise = oidcPromise.then(provider => provider.callback());
+    const devPortalOidcEnabled = config.devPortalOidc.enabled;
+    const devPortalStateCookie = 'dev_portal_state';
+    const devPortalNonceCookie = 'dev_portal_nonce';
 
     const redirect = (session: Session, location: string) => {
         session.status = 302;
@@ -225,6 +229,33 @@ export function apply(ctx: Context) {
 
     ctx.route('/dashboard/login')
         .action(async (session) => {
+            if (devPortalOidcEnabled) {
+                if (!config.devPortalOidc.authorization_endpoint || !config.devPortalOidc.clientId) {
+                    throw new Error('devPortalOidc 未配置完整的 authorization_endpoint/clientId');
+                }
+                const state = randomBytes(16).toString('hex');
+                const nonce = randomBytes(16).toString('hex');
+                session.newCookie[devPortalStateCookie] = {
+                    value: state,
+                    options: { httpOnly: true, path: '/', sameSite: 'Lax' },
+                };
+                session.newCookie[devPortalNonceCookie] = {
+                    value: nonce,
+                    options: { httpOnly: true, path: '/', sameSite: 'Lax' },
+                };
+
+                const authUrl = new URL(config.devPortalOidc.authorization_endpoint);
+                authUrl.searchParams.append('client_id', config.devPortalOidc.clientId);
+                authUrl.searchParams.append('scope', config.devPortalOidc.scope || 'openid profile email');
+                authUrl.searchParams.append('redirect_uri', `${config.server.issuer}/dashboard/callback`);
+                authUrl.searchParams.append('response_type', 'code');
+                authUrl.searchParams.append('state', state);
+                authUrl.searchParams.append('nonce', nonce);
+
+                redirect(session, authUrl.toString());
+                return;
+            }
+
             const oidc = await oidcPromise;
             const authUrl = new URL(`${oidc.issuer}/auth`);
             authUrl.searchParams.append('client_id', 'dev-portal');
@@ -260,7 +291,61 @@ export function apply(ctx: Context) {
                 const params = getQueryParams(session);
                 const code = params.get('code') || '';
                 if (!code) {
-                    throw new Error('Missing authorization code in developer callback.');
+                    session.status = 400;
+                    session.body = 'Missing authorization code in developer callback.';
+                    return;
+                }
+
+                if (devPortalOidcEnabled) {
+                    const returnedState = params.get('state') || '';
+                    const expectedState = session.cookie[devPortalStateCookie] || '';
+                    session.newCookie[devPortalStateCookie] = { value: '', options: { path: '/', expires: new Date(0) } };
+                    session.newCookie[devPortalNonceCookie] = { value: '', options: { path: '/', expires: new Date(0) } };
+                    if (!returnedState || returnedState !== expectedState) {
+                        session.status = 400;
+                        session.body = 'Invalid state in developer callback.';
+                        return;
+                    }
+
+                    if (!config.devPortalOidc.token_endpoint || !config.devPortalOidc.clientId) {
+                        throw new Error('devPortalOidc 未配置完整的 token_endpoint/clientId');
+                    }
+                    const authMethod = config.devPortalOidc.token_endpoint_auth_method || 'client_secret_basic';
+                    if (!config.devPortalOidc.clientSecret) {
+                        throw new Error('devPortalOidc 未配置 clientSecret');
+                    }
+                    const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/x-www-form-urlencoded' };
+                    const tokenBody = new URLSearchParams({
+                        code,
+                        redirect_uri: `${config.server.issuer}/dashboard/callback`,
+                        grant_type: 'authorization_code',
+                    });
+
+                    if (authMethod === 'client_secret_basic') {
+                        const authHeader = Buffer.from(`${config.devPortalOidc.clientId}:${config.devPortalOidc.clientSecret}`, 'utf-8').toString('base64');
+                        tokenHeaders['Authorization'] = `Basic ${authHeader}`;
+                    } else if (authMethod === 'client_secret_post') {
+                        tokenBody.set('client_id', config.devPortalOidc.clientId);
+                        tokenBody.set('client_secret', config.devPortalOidc.clientSecret);
+                    } else {
+                        throw new Error(`Unsupported token endpoint auth method: ${authMethod}`);
+                    }
+
+                    const tokenResponse = await fetch(config.devPortalOidc.token_endpoint, {
+                        method: 'POST',
+                        headers: tokenHeaders,
+                        body: tokenBody,
+                    });
+
+                    const tokens = await tokenResponse.json() as any;
+                    if (tokens.error) throw new Error(`Token exchange failed: ${tokens.error_description || tokens.error}`);
+                    if (!tokens.id_token) {
+                        throw new Error('Upstream token response missing id_token for developer login.');
+                    }
+
+                    session.newCookie[config.devPortal.cookieName] = { value: tokens.id_token, options: { httpOnly: true, path: '/' } };
+                    redirect(session, '/dashboard');
+                    return;
                 }
 
                 const oidc = await oidcPromise;
@@ -600,7 +685,11 @@ export function apply(ctx: Context) {
                 const query = getQueryParams(session);
                 const code = query.get('code');
                 const state = query.get('state');
-                if (!code || !state) throw new Error('Missing code or state from upstream provider');
+                if (!code || !state) {
+                    session.status = 400;
+                    session.body = 'Missing code or state from upstream provider';
+                    return;
+                }
 
                 const oidc = await oidcPromise;
                 const { interaction_uid } = JSON.parse(Buffer.from(state, 'base64url').toString('utf-8'));

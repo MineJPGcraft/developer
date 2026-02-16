@@ -514,6 +514,10 @@ export const deleteClientAdmin = async (clientId: string) => {
 };
 
 async function ensureDevPortalClient() {
+    if (config.devPortalOidc.enabled) {
+        logger.info('devPortalOidc enabled; skipping built-in developer portal client.');
+        return;
+    }
     const repo = await clientRepository();
     const devPortalId = 'dev-portal';
     const expectedRedirects = [`${config.server.issuer}/dashboard/callback`];

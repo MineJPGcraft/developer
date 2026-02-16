@@ -62,6 +62,17 @@ upstreamOidc:
   authorizationEndpoint: https://sso.example.org/login/oauth/authorize
   tokenEndpoint: https://sso.example.org/api/login/oauth/access_token
 
+devPortalOidc:
+  enabled: true
+  issuer: https://sso.example.org
+  clientId: your-dev-portal-client-id
+  clientSecret: your-dev-portal-client-secret
+  authorizationEndpoint: https://sso.example.org/oauth/authorize
+  tokenEndpoint: https://sso.example.org/oauth/token
+  jwksUri: https://sso.example.org/.well-known/jwks
+  scope: openid profile email
+  tokenEndpointAuthMethod: client_secret_basic
+
 database:
   type: postgres
   host: 127.0.0.1
@@ -108,8 +119,8 @@ certificates:
 ### 关键说明
 
 - `admin.ids`: 管理员用户的 `sub` 列表，用于访问 `/admin` 管理面板。
+- `devPortalOidc`: 开发者门户登录的上游 OIDC 配置。启用后不再使用内置 `dev-portal` 客户端登录。
 - `cloudflare.domains`: 可选二级域名列表，每个域名可以使用独立的 Cloudflare Token。
 - `cloudflare.defaultDomain`: 默认选中的二级域名。
 - `sld.reserved`: 保留前缀（不可注册）。
 - `sld.blocked`: 黑名单前缀（不可注册）。
-

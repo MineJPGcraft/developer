@@ -90,6 +90,18 @@ export interface AppConfig {
         authorization_endpoint: string;
         token_endpoint: string;
     };
+    devPortalOidc: {
+        enabled: boolean;
+        issuer?: string;
+        clientId: string;
+        clientSecret: string;
+        authorization_endpoint: string;
+        token_endpoint: string;
+        jwks_uri?: string;
+        userinfo_endpoint?: string;
+        scope: string;
+        token_endpoint_auth_method: 'client_secret_basic' | 'client_secret_post';
+    };
     devPortal: {
         cookieSecret: string;
         cookieName: string;
@@ -258,6 +270,7 @@ function loadConfig(): AppConfig {
 
     const server = parsed.server || {};
     const upstream = parsed.upstreamOidc || {};
+    const devPortalOidc = parsed.devPortalOidc || {};
     const database = parsed.database || {};
     const devPortal = parsed.devPortal || {};
     const ui = parsed.ui || {};
@@ -296,6 +309,32 @@ function loadConfig(): AppConfig {
             authorization_endpoint: String(upstream.authorizationEndpoint ?? upstream.authorization_endpoint ?? ''),
             token_endpoint: String(upstream.tokenEndpoint ?? upstream.token_endpoint ?? ''),
         },
+        devPortalOidc: (() => {
+            const rawAuthorization = devPortalOidc.authorizationEndpoint ?? devPortalOidc.authorization_endpoint ?? '';
+            const rawTokenEndpoint = devPortalOidc.tokenEndpoint ?? devPortalOidc.token_endpoint ?? '';
+            const enabled = Boolean(
+                devPortalOidc.enabled === true
+                || (rawAuthorization && (devPortalOidc.clientId ?? process.env.DEV_PORTAL_OIDC_CLIENT_ID))
+            );
+            return {
+                enabled,
+                issuer: devPortalOidc.issuer ? String(devPortalOidc.issuer) : undefined,
+                clientId: process.env.DEV_PORTAL_OIDC_CLIENT_ID || String(devPortalOidc.clientId ?? ''),
+                clientSecret: process.env.DEV_PORTAL_OIDC_CLIENT_SECRET || String(devPortalOidc.clientSecret ?? ''),
+                authorization_endpoint: String(rawAuthorization),
+                token_endpoint: String(rawTokenEndpoint),
+                jwks_uri: devPortalOidc.jwksUri
+                    ? String(devPortalOidc.jwksUri)
+                    : (devPortalOidc.jwks_uri ? String(devPortalOidc.jwks_uri) : undefined),
+                userinfo_endpoint: devPortalOidc.userinfoEndpoint
+                    ? String(devPortalOidc.userinfoEndpoint)
+                    : (devPortalOidc.userinfo_endpoint ? String(devPortalOidc.userinfo_endpoint) : undefined),
+                scope: String(devPortalOidc.scope ?? 'openid profile email'),
+                token_endpoint_auth_method: (devPortalOidc.tokenEndpointAuthMethod ?? devPortalOidc.token_endpoint_auth_method) === 'client_secret_post'
+                    ? 'client_secret_post'
+                    : 'client_secret_basic',
+            };
+        })(),
         devPortal: {
             cookieSecret: process.env.DEV_PORTAL_COOKIE_SECRET || String(devPortal.cookieSecret ?? ''),
             cookieName: String(devPortal.cookieName ?? 'dev_session'),
