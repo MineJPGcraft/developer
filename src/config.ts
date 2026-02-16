@@ -79,6 +79,10 @@ export interface AppConfig {
         port: number;
         host: string;
         issuer: string;
+        userIssuer: string;
+        devIssuer: string;
+        userHosts: string[];
+        devHosts: string[];
     };
     admin: {
         ids: string[];
@@ -91,7 +95,6 @@ export interface AppConfig {
         token_endpoint: string;
     };
     devPortalOidc: {
-        enabled: boolean;
         issuer?: string;
         clientId: string;
         clientSecret: string;
@@ -282,11 +285,37 @@ function loadConfig(): AppConfig {
     const cloudflare = parsed.cloudflare || {};
     const cloudflareDomainsRaw = Array.isArray(cloudflare.domains) ? cloudflare.domains : [];
 
+    const defaultIssuer = String(server.issuer ?? `http://localhost:${server.port ?? 8080}`);
+    const userIssuer = String(server.userIssuer ?? defaultIssuer);
+    const devIssuer = String(server.devIssuer ?? defaultIssuer);
+    const parseHosts = (value: unknown): string[] => {
+        if (Array.isArray(value)) {
+            return value.map(item => String(item).trim()).filter(Boolean);
+        }
+        if (typeof value === 'string' && value.trim()) {
+            return [value.trim()];
+        }
+        return [];
+    };
+    const deriveHost = (issuer: string) => {
+        try {
+            return new URL(issuer).host;
+        } catch {
+            return '';
+        }
+    };
+    const userHosts = parseHosts(server.userHosts);
+    const devHosts = parseHosts(server.devHosts);
+
     const config: AppConfig = {
         server: {
             port: Number(server.port ?? 8080),
             host: String(server.host ?? '0.0.0.0'),
-            issuer: String(server.issuer ?? `http://localhost:${server.port ?? 8080}`),
+            issuer: defaultIssuer,
+            userIssuer,
+            devIssuer,
+            userHosts: userHosts.length ? userHosts : [deriveHost(userIssuer)].filter(Boolean),
+            devHosts: devHosts.length ? devHosts : [deriveHost(devIssuer)].filter(Boolean),
         },
         admin: {
             ids: Array.isArray(admin.ids)
@@ -312,12 +341,7 @@ function loadConfig(): AppConfig {
         devPortalOidc: (() => {
             const rawAuthorization = devPortalOidc.authorizationEndpoint ?? devPortalOidc.authorization_endpoint ?? '';
             const rawTokenEndpoint = devPortalOidc.tokenEndpoint ?? devPortalOidc.token_endpoint ?? '';
-            const enabled = Boolean(
-                devPortalOidc.enabled === true
-                || (rawAuthorization && (devPortalOidc.clientId ?? process.env.DEV_PORTAL_OIDC_CLIENT_ID))
-            );
             return {
-                enabled,
                 issuer: devPortalOidc.issuer ? String(devPortalOidc.issuer) : undefined,
                 clientId: process.env.DEV_PORTAL_OIDC_CLIENT_ID || String(devPortalOidc.clientId ?? ''),
                 clientSecret: process.env.DEV_PORTAL_OIDC_CLIENT_SECRET || String(devPortalOidc.clientSecret ?? ''),

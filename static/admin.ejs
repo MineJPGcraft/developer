@@ -136,6 +136,13 @@
         <hr class="divider">
 
         <h3 class="section-title" style="font-size:1.3rem;">OIDC 应用管理</h3>
+        <div style="margin: 0 0 1.5rem;">
+          <p class="section-subtitle" style="margin-bottom:.5rem;">登录流程测试（每次重启会重置密钥）</p>
+          <div class="muted" id="admin-test-client-info">加载中...</div>
+          <div style="margin-top:.75rem;">
+            <a class="btn btn-secondary" id="admin-test-start" href="#" style="display:inline-flex;">开始测试登录</a>
+          </div>
+        </div>
         <form id="admin-client-form" class="yui-form" novalidate>
           <div class="yui-form__group">
             <label for="admin-client-owner">Owner ID</label>
@@ -264,7 +271,7 @@
   </div>
 
   <script>
-    const state = { rootDomains: [], defaultRoot: '', subdomains: [], clients: [], editingSubdomainId: null, editingClientId: null };
+    const state = { rootDomains: [], defaultRoot: '', subdomains: [], clients: [], editingSubdomainId: null, editingClientId: null, testClient: null };
 
     function showError(id, msg) {
       const box = document.getElementById(id);
@@ -377,6 +384,29 @@
       if (!data.success) throw new Error(data.message || '加载失败');
       state.clients = data.data || [];
       renderClients();
+    }
+
+    async function loadTestClient() {
+      const res = await fetch('/api/admin/test-client');
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || '加载失败');
+      state.testClient = data.data;
+      renderTestClient();
+    }
+
+    function renderTestClient() {
+      const box = document.getElementById('admin-test-client-info');
+      if (!box || !state.testClient) return;
+      const info = state.testClient;
+      box.innerHTML = `
+        Client ID: <strong>${info.clientId}</strong><br>
+        Client Secret: <strong>${info.clientSecret}</strong><br>
+        Redirect URI: <strong>${(info.redirectUris || []).join(', ')}</strong><br>
+        Auth Endpoint: <strong>${info.authorizationEndpoint}</strong><br>
+        Token Endpoint: <strong>${info.tokenEndpoint}</strong>
+      `;
+      const start = document.getElementById('admin-test-start');
+      if (start) start.href = info.testStart || '/admin/oidc-test/start';
     }
 
     function renderClients() {
@@ -524,6 +554,7 @@
       await loadUiConfig();
       await loadSubdomains();
       await loadClients();
+      await loadTestClient();
     })();
   </script>
 </body>

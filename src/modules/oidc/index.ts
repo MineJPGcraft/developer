@@ -25,6 +25,8 @@ import { config } from '../../config';
 import { requireDevAccount } from '../../utils/dev-account';
 import { requireAdmin } from '../../utils/admin';
 import { getPublicJwks } from '../../jwks';
+import { enforceHost } from '../../utils/host-guard';
+import { ADMIN_TEST_CLIENT_ID } from '../../constants';
 
 const logger = new Logger('OIDCRoutes');
 
@@ -42,7 +44,7 @@ function resolveExternalBase(session: Session): URL {
     }
 
     const { req } = session.client;
-    const issuerUrl = new URL(config.server.issuer);
+    const issuerUrl = new URL(config.server.userIssuer);
 
     const protocol = (session.protocol
         || firstHeader(req.headers['x-forwarded-proto'])
@@ -207,73 +209,74 @@ function buildDevPortalMetadata(session: Session) {
 export function apply(ctx: Context) {
     const oidcPromise = getOidcProvider();
     const oidcCallbackPromise = oidcPromise.then(provider => provider.callback());
-    const devPortalOidcEnabled = config.devPortalOidc.enabled;
     const devPortalStateCookie = 'dev_portal_state';
     const devPortalNonceCookie = 'dev_portal_nonce';
+    const userHosts = config.server.userHosts;
+    const devHosts = config.server.devHosts;
+    const userIssuer = config.server.userIssuer;
+    const devIssuer = config.server.devIssuer;
+    const adminTestStateCookie = 'admin_oidc_test_state';
 
     const redirect = (session: Session, location: string) => {
         session.status = 302;
         session.head['Location'] = location;
     };
 
+    const guard = (allowedHosts: string[]) => {
+        return <T extends any[]>(handler: (session: Session, ...args: T) => void | Promise<void>) => {
+            return async (session: Session, ...args: T): Promise<void> => {
+                enforceHost(session, allowedHosts);
+                if (session.status === 404) return;
+                await handler(session, ...args);
+            };
+        };
+    };
+    const devOnly = guard(devHosts);
+    const userOnly = guard(userHosts);
+
     // --- Developer Portal Routes ---
     ctx.route('/')
-        .action(async (session) => {
+        .action(devOnly(async (session) => {
             try {
                 renderTemplate(session, 'static/home.ejs', templateData());
             } catch (err) {
                 session.status = 500;
                 session.body = '未找到首页模板资源。';
             }
-        });
+        }));
 
     ctx.route('/dashboard/login')
-        .action(async (session) => {
-            if (devPortalOidcEnabled) {
-                if (!config.devPortalOidc.authorization_endpoint || !config.devPortalOidc.clientId) {
-                    throw new Error('devPortalOidc 未配置完整的 authorization_endpoint/clientId');
-                }
-                const state = randomBytes(16).toString('hex');
-                const nonce = randomBytes(16).toString('hex');
-                session.newCookie[devPortalStateCookie] = {
-                    value: state,
-                    options: { httpOnly: true, path: '/', sameSite: 'Lax' },
-                };
-                session.newCookie[devPortalNonceCookie] = {
-                    value: nonce,
-                    options: { httpOnly: true, path: '/', sameSite: 'Lax' },
-                };
-
-                const authUrl = new URL(config.devPortalOidc.authorization_endpoint);
-                authUrl.searchParams.append('client_id', config.devPortalOidc.clientId);
-                authUrl.searchParams.append('scope', config.devPortalOidc.scope || 'openid profile email');
-                authUrl.searchParams.append('redirect_uri', `${config.server.issuer}/dashboard/callback`);
-                authUrl.searchParams.append('response_type', 'code');
-                authUrl.searchParams.append('state', state);
-                authUrl.searchParams.append('nonce', nonce);
-
-                redirect(session, authUrl.toString());
-                return;
+        .action(devOnly(async (session) => {
+            if (!config.devPortalOidc.authorization_endpoint || !config.devPortalOidc.clientId) {
+                throw new Error('devPortalOidc 未配置完整的 authorization_endpoint/clientId');
             }
+            const state = randomBytes(16).toString('hex');
+            const nonce = randomBytes(16).toString('hex');
+            session.newCookie[devPortalStateCookie] = {
+                value: state,
+                options: { httpOnly: true, path: '/', sameSite: 'Lax' },
+            };
+            session.newCookie[devPortalNonceCookie] = {
+                value: nonce,
+                options: { httpOnly: true, path: '/', sameSite: 'Lax' },
+            };
 
-            const oidc = await oidcPromise;
-            const authUrl = new URL(`${oidc.issuer}/auth`);
-            authUrl.searchParams.append('client_id', 'dev-portal');
-            authUrl.searchParams.append('scope', 'openid profile email');
-            authUrl.searchParams.append('redirect_uri', `${config.server.issuer}/dashboard/callback`);
+            const authUrl = new URL(config.devPortalOidc.authorization_endpoint);
+            authUrl.searchParams.append('client_id', config.devPortalOidc.clientId);
+            authUrl.searchParams.append('scope', config.devPortalOidc.scope || 'openid profile email');
+            authUrl.searchParams.append('redirect_uri', `${devIssuer}/dashboard/callback`);
             authUrl.searchParams.append('response_type', 'code');
-            authUrl.searchParams.append('prompt', 'login consent');
-            authUrl.searchParams.append('nonce', Date.now().toString(36));
-            authUrl.searchParams.append('state', Date.now().toString(36));
+            authUrl.searchParams.append('state', state);
+            authUrl.searchParams.append('nonce', nonce);
 
             redirect(session, authUrl.toString());
-        });
+        }));
 
-    ctx.route('/dev/login').action((session) => redirect(session, '/dashboard/login'));
-    ctx.route('/dev').action((session) => redirect(session, '/dashboard'));
+    ctx.route('/dev/login').action(devOnly((session) => redirect(session, '/dashboard/login')));
+    ctx.route('/dev').action(devOnly((session) => redirect(session, '/dashboard')));
 
     ctx.route('/dashboard')
-        .action(async (session) => {
+        .action(devOnly(async (session) => {
             try {
                 await requireDevAccount(session);
                 renderTemplate(session, 'static/overview.ejs', templateData());
@@ -281,12 +284,12 @@ export function apply(ctx: Context) {
                 logger.warn('Overview dashboard unavailable:', err);
                 redirect(session, '/');
             }
-        });
+        }));
 
-    ctx.route('/dev/overview').action((session) => redirect(session, '/dashboard'));
+    ctx.route('/dev/overview').action(devOnly((session) => redirect(session, '/dashboard')));
 
     ctx.route('/dashboard/callback')
-        .action(async (session) => {
+        .action(devOnly(async (session) => {
             try {
                 const params = getQueryParams(session);
                 const code = params.get('code') || '';
@@ -296,81 +299,41 @@ export function apply(ctx: Context) {
                     return;
                 }
 
-                if (devPortalOidcEnabled) {
-                    const returnedState = params.get('state') || '';
-                    const expectedState = session.cookie[devPortalStateCookie] || '';
-                    session.newCookie[devPortalStateCookie] = { value: '', options: { path: '/', expires: new Date(0) } };
-                    session.newCookie[devPortalNonceCookie] = { value: '', options: { path: '/', expires: new Date(0) } };
-                    if (!returnedState || returnedState !== expectedState) {
-                        session.status = 400;
-                        session.body = 'Invalid state in developer callback.';
-                        return;
-                    }
-
-                    if (!config.devPortalOidc.token_endpoint || !config.devPortalOidc.clientId) {
-                        throw new Error('devPortalOidc 未配置完整的 token_endpoint/clientId');
-                    }
-                    const authMethod = config.devPortalOidc.token_endpoint_auth_method || 'client_secret_basic';
-                    if (!config.devPortalOidc.clientSecret) {
-                        throw new Error('devPortalOidc 未配置 clientSecret');
-                    }
-                    const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/x-www-form-urlencoded' };
-                    const tokenBody = new URLSearchParams({
-                        code,
-                        redirect_uri: `${config.server.issuer}/dashboard/callback`,
-                        grant_type: 'authorization_code',
-                    });
-
-                    if (authMethod === 'client_secret_basic') {
-                        const authHeader = Buffer.from(`${config.devPortalOidc.clientId}:${config.devPortalOidc.clientSecret}`, 'utf-8').toString('base64');
-                        tokenHeaders['Authorization'] = `Basic ${authHeader}`;
-                    } else if (authMethod === 'client_secret_post') {
-                        tokenBody.set('client_id', config.devPortalOidc.clientId);
-                        tokenBody.set('client_secret', config.devPortalOidc.clientSecret);
-                    } else {
-                        throw new Error(`Unsupported token endpoint auth method: ${authMethod}`);
-                    }
-
-                    const tokenResponse = await fetch(config.devPortalOidc.token_endpoint, {
-                        method: 'POST',
-                        headers: tokenHeaders,
-                        body: tokenBody,
-                    });
-
-                    const tokens = await tokenResponse.json() as any;
-                    if (tokens.error) throw new Error(`Token exchange failed: ${tokens.error_description || tokens.error}`);
-                    if (!tokens.id_token) {
-                        throw new Error('Upstream token response missing id_token for developer login.');
-                    }
-
-                    session.newCookie[config.devPortal.cookieName] = { value: tokens.id_token, options: { httpOnly: true, path: '/' } };
-                    redirect(session, '/dashboard');
+                const returnedState = params.get('state') || '';
+                const expectedState = session.cookie[devPortalStateCookie] || '';
+                session.newCookie[devPortalStateCookie] = { value: '', options: { path: '/', expires: new Date(0) } };
+                session.newCookie[devPortalNonceCookie] = { value: '', options: { path: '/', expires: new Date(0) } };
+                if (!returnedState || returnedState !== expectedState) {
+                    session.status = 400;
+                    session.body = 'Invalid state in developer callback.';
                     return;
                 }
 
-                const oidc = await oidcPromise;
-                const devPortalClient = await findClient('dev-portal');
-                if (!devPortalClient) throw new Error('Built-in dev-portal client not found in database.');
-
-                const authMethod = devPortalClient.token_endpoint_auth_method || 'client_secret_basic';
+                if (!config.devPortalOidc.token_endpoint || !config.devPortalOidc.clientId) {
+                    throw new Error('devPortalOidc 未配置完整的 token_endpoint/clientId');
+                }
+                const authMethod = config.devPortalOidc.token_endpoint_auth_method || 'client_secret_basic';
+                if (!config.devPortalOidc.clientSecret) {
+                    throw new Error('devPortalOidc 未配置 clientSecret');
+                }
                 const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/x-www-form-urlencoded' };
                 const tokenBody = new URLSearchParams({
                     code,
-                    redirect_uri: `${config.server.issuer}/dashboard/callback`,
+                    redirect_uri: `${devIssuer}/dashboard/callback`,
                     grant_type: 'authorization_code',
                 });
 
                 if (authMethod === 'client_secret_basic') {
-                    const authHeader = Buffer.from(`${devPortalClient.client_id}:${devPortalClient.client_secret}`, 'utf-8').toString('base64');
+                    const authHeader = Buffer.from(`${config.devPortalOidc.clientId}:${config.devPortalOidc.clientSecret}`, 'utf-8').toString('base64');
                     tokenHeaders['Authorization'] = `Basic ${authHeader}`;
                 } else if (authMethod === 'client_secret_post') {
-                    tokenBody.set('client_id', devPortalClient.client_id);
-                    tokenBody.set('client_secret', devPortalClient.client_secret);
+                    tokenBody.set('client_id', config.devPortalOidc.clientId);
+                    tokenBody.set('client_secret', config.devPortalOidc.clientSecret);
                 } else {
                     throw new Error(`Unsupported token endpoint auth method: ${authMethod}`);
                 }
 
-                const tokenResponse = await fetch(`${oidc.issuer}/token`, {
+                const tokenResponse = await fetch(config.devPortalOidc.token_endpoint, {
                     method: 'POST',
                     headers: tokenHeaders,
                     body: tokenBody,
@@ -378,21 +341,23 @@ export function apply(ctx: Context) {
 
                 const tokens = await tokenResponse.json() as any;
                 if (tokens.error) throw new Error(`Token exchange failed: ${tokens.error_description || tokens.error}`);
+                if (!tokens.id_token) {
+                    throw new Error('Upstream token response missing id_token for developer login.');
+                }
 
                 session.newCookie[config.devPortal.cookieName] = { value: tokens.id_token, options: { httpOnly: true, path: '/' } };
-
                 redirect(session, '/dashboard');
             } catch (err) {
                 logger.error('Error in dev callback:', err);
                 session.status = 500;
                 session.body = 'An error occurred during developer login.';
             }
-        });
+        }));
 
-    ctx.route('/dev/callback').action((session) => redirect(session, '/dashboard/callback'));
+    ctx.route('/dev/callback').action(devOnly((session) => redirect(session, '/dashboard/callback')));
 
     ctx.route('/dashboard/oidc')
-        .action(async (session) => {
+        .action(devOnly(async (session) => {
             try {
                 await requireDevAccount(session);
                 renderTemplate(session, 'static/dashboard.ejs', templateData());
@@ -401,12 +366,12 @@ export function apply(ctx: Context) {
                 session.newCookie[config.devPortal.cookieName] = { value: '', options: { path: '/', expires: new Date(0) } };
                 redirect(session, '/');
             }
-        });
+        }));
 
-    ctx.route('/dev/dashboard').action((session) => redirect(session, '/dashboard/oidc'));
+    ctx.route('/dev/dashboard').action(devOnly((session) => redirect(session, '/dashboard/oidc')));
 
     ctx.route('/admin')
-        .action(async (session) => {
+        .action(devOnly(async (session) => {
             try {
                 await requireAdmin(session);
                 renderTemplate(session, 'static/admin.ejs', templateData());
@@ -414,11 +379,107 @@ export function apply(ctx: Context) {
                 logger.warn('Admin access denied:', err);
                 redirect(session, '/');
             }
-        });
+        }));
+
+    ctx.route('/admin/oidc-test/start')
+        .action(devOnly(async (session) => {
+            try {
+                await requireAdmin(session);
+                const state = randomBytes(16).toString('hex');
+                session.newCookie[adminTestStateCookie] = {
+                    value: state,
+                    options: { httpOnly: true, path: '/', sameSite: 'Lax' },
+                };
+                const authUrl = new URL(`${userIssuer}/auth`);
+                authUrl.searchParams.append('client_id', ADMIN_TEST_CLIENT_ID);
+                authUrl.searchParams.append('scope', 'openid profile email');
+                authUrl.searchParams.append('redirect_uri', `${devIssuer}/admin/oidc-test/callback`);
+                authUrl.searchParams.append('response_type', 'code');
+                authUrl.searchParams.append('prompt', 'login consent');
+                authUrl.searchParams.append('state', state);
+                authUrl.searchParams.append('nonce', Date.now().toString(36));
+                redirect(session, authUrl.toString());
+            } catch (err) {
+                logger.error('Error starting admin login test:', err);
+                session.status = 500;
+                session.body = 'Failed to start login test.';
+            }
+        }));
+
+    ctx.route('/admin/oidc-test/callback')
+        .action(devOnly(async (session) => {
+            try {
+                await requireAdmin(session);
+                const params = getQueryParams(session);
+                const code = params.get('code') || '';
+                if (!code) {
+                    session.status = 400;
+                    session.body = 'Missing authorization code in test callback.';
+                    return;
+                }
+                const returnedState = params.get('state') || '';
+                const expectedState = session.cookie[adminTestStateCookie] || '';
+                session.newCookie[adminTestStateCookie] = { value: '', options: { path: '/', expires: new Date(0) } };
+                if (!returnedState || returnedState !== expectedState) {
+                    session.status = 400;
+                    session.body = 'Invalid state in test callback.';
+                    return;
+                }
+
+                const client = await findClient(ADMIN_TEST_CLIENT_ID);
+                if (!client) {
+                    throw new Error('Test client not found');
+                }
+
+                const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/x-www-form-urlencoded' };
+                const tokenBody = new URLSearchParams({
+                    code,
+                    redirect_uri: `${devIssuer}/admin/oidc-test/callback`,
+                    grant_type: 'authorization_code',
+                });
+                const authHeader = Buffer.from(`${client.client_id}:${client.client_secret}`, 'utf-8').toString('base64');
+                tokenHeaders['Authorization'] = `Basic ${authHeader}`;
+
+                const tokenResponse = await fetch(`${userIssuer}/token`, {
+                    method: 'POST',
+                    headers: tokenHeaders,
+                    body: tokenBody,
+                });
+                const tokens = await tokenResponse.json() as any;
+                if (tokens.error) {
+                    throw new Error(`Token exchange failed: ${tokens.error_description || tokens.error}`);
+                }
+
+                session.setMime('html');
+                session.body = `
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>OIDC 登录测试结果</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 2rem; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 1rem; border-radius: 8px; overflow: auto; }
+    a { color: #2563eb; }
+  </style>
+</head>
+<body>
+  <h2>OIDC 登录测试完成</h2>
+  <p>下面是本次登录获取到的 token 响应。</p>
+  <pre>${JSON.stringify(tokens, null, 2)}</pre>
+  <p><a href="/admin">返回管理员面板</a></p>
+</body>
+</html>`;
+            } catch (err) {
+                logger.error('Error in admin test callback:', err);
+                session.status = 500;
+                session.body = 'Login test failed.';
+            }
+        }));
 
     // --- API routes ---
     const apiUiRoute = ctx.route('/api/ui-config');
-    apiUiRoute.action(async (session) => {
+    apiUiRoute.action(devOnly(async (session) => {
         try {
             await requireDevAccount(session);
             const domains = (config.cloudflareDomains && config.cloudflareDomains.length)
@@ -446,10 +507,10 @@ export function apply(ctx: Context) {
             session.setMime('json');
             session.body = JSON.stringify({ success: false, message: (error as Error).message });
         }
-    });
+    }));
 
     const adminClientsRoute = ctx.route('/api/admin/clients').methods('GET', 'POST');
-    adminClientsRoute.action(async (session) => {
+    adminClientsRoute.action(devOnly(async (session) => {
         const method = session.client.req.method?.toUpperCase();
         try {
             await requireAdmin(session);
@@ -487,16 +548,40 @@ export function apply(ctx: Context) {
             session.setMime('json');
             session.body = JSON.stringify({ success: false, message: (error as Error).message });
         }
-    });
+    }));
+
+    const adminTestClientRoute = ctx.route('/api/admin/test-client').methods('GET');
+    adminTestClientRoute.action(devOnly(async (session) => {
+        try {
+            await requireAdmin(session);
+            const client = await findClient(ADMIN_TEST_CLIENT_ID);
+            if (!client) {
+                throw new Error('Test client not found');
+            }
+            session.setMime('json');
+            session.body = JSON.stringify({
+                success: true,
+                data: {
+                    clientId: client.client_id,
+                    clientSecret: client.client_secret,
+                    redirectUris: client.redirect_uris,
+                    authorizationEndpoint: `${userIssuer}/auth`,
+                    tokenEndpoint: `${userIssuer}/token`,
+                    testStart: '/admin/oidc-test/start',
+                },
+            });
+        } catch (error) {
+            session.status = 400;
+            session.setMime('json');
+            session.body = JSON.stringify({ success: false, message: (error as Error).message });
+        }
+    }));
 
     const adminClientDetail = ctx.route('/api/admin/clients/:clientId').methods('PUT', 'DELETE');
-    adminClientDetail.action(async (session, _params, clientId) => {
+    adminClientDetail.action(devOnly(async (session, _params, clientId) => {
         const method = session.client.req.method?.toUpperCase();
         try {
             await requireAdmin(session);
-            if (clientId === 'dev-portal') {
-                throw new Error('内置客户端不可修改或删除');
-            }
             if (method === 'PUT') {
                 const body = await session.parseRequestBody();
                 const clientName = String(body?.client_name ?? '').trim();
@@ -529,10 +614,10 @@ export function apply(ctx: Context) {
             session.setMime('json');
             session.body = JSON.stringify({ success: false, message: (error as Error).message });
         }
-    });
+    }));
 
     const apiProfileRoute = ctx.route('/api/profile');
-    apiProfileRoute.action(async (session) => {
+    apiProfileRoute.action(devOnly(async (session) => {
         try {
             const { accountId, profile } = await requireDevAccount(session);
             session.setMime('json');
@@ -551,10 +636,10 @@ export function apply(ctx: Context) {
             session.setMime('json');
             session.body = JSON.stringify({ success: false, message: (error as Error).message });
         }
-    });
+    }));
 
     const apiAnnouncementsRoute = ctx.route('/api/announcements');
-    apiAnnouncementsRoute.action(async (session) => {
+    apiAnnouncementsRoute.action(devOnly(async (session) => {
         try {
             await requireDevAccount(session);
             session.setMime('json');
@@ -567,10 +652,10 @@ export function apply(ctx: Context) {
             session.setMime('json');
             session.body = JSON.stringify({ success: false, message: (error as Error).message });
         }
-    });
+    }));
 
     const apiClientsRoute = ctx.route('/api/clients').methods('GET', 'POST');
-    apiClientsRoute.action(async (session) => {
+    apiClientsRoute.action(devOnly(async (session) => {
         const method = session.client.req.method?.toUpperCase();
         try {
             const { accountId } = await requireDevAccount(session);
@@ -631,15 +716,12 @@ export function apply(ctx: Context) {
             session.setMime('json');
             session.body = JSON.stringify({ success: false, message: (error as Error).message });
         }
-    });
+    }));
 
     const apiClientDetailRoute = ctx.route('/api/clients/:clientId').methods('PUT', 'DELETE');
-    apiClientDetailRoute.action(async (session, _params, clientId) => {
+    apiClientDetailRoute.action(devOnly(async (session, _params, clientId) => {
         const method = session.client.req.method?.toUpperCase();
         try {
-            if (clientId === 'dev-portal') {
-                throw new Error('内置客户端不可修改或删除。');
-            }
             const { accountId } = await requireDevAccount(session);
 
             if (method === 'PUT') {
@@ -676,11 +758,11 @@ export function apply(ctx: Context) {
             session.setMime('json');
             session.body = JSON.stringify({ success: false, message: (error as Error).message });
         }
-    });
+    }));
 
     // --- OIDC Interaction Routes ---
     ctx.route('/interaction/callback')
-        .action(async (session) => {
+        .action(userOnly(async (session) => {
             try {
                 const query = getQueryParams(session);
                 const code = query.get('code');
@@ -702,7 +784,7 @@ export function apply(ctx: Context) {
                         code,
                         client_id: config.upstreamOidc.clientId,
                         client_secret: config.upstreamOidc.clientSecret,
-                        redirect_uri: `${config.server.issuer}/interaction/callback`,
+                        redirect_uri: `${userIssuer}/interaction/callback`,
                         grant_type: 'authorization_code',
                     }),
                 });
@@ -724,10 +806,10 @@ export function apply(ctx: Context) {
                 session.status = 500;
                 session.body = 'An error occurred during upstream authentication.';
             }
-        });
+        }));
 
     ctx.route('/interaction/:uid')
-        .action(async (session, _params, uid) => {
+        .action(userOnly(async (session, _params, uid) => {
             try {
                 const oidc = await oidcPromise;
                 const details = await oidc.interactionDetails(session.client.req, session.client.res);
@@ -741,7 +823,7 @@ export function apply(ctx: Context) {
                     redirectUrl.searchParams.append('client_id', config.upstreamOidc.clientId);
                     redirectUrl.searchParams.append('response_type', 'code');
                     redirectUrl.searchParams.append('scope', 'openid email profile');
-                    redirectUrl.searchParams.append('redirect_uri', `${config.server.issuer}/interaction/callback`);
+                    redirectUrl.searchParams.append('redirect_uri', `${userIssuer}/interaction/callback`);
                     redirectUrl.searchParams.append('state', state);
 
                     session.status = 302;
@@ -760,10 +842,10 @@ export function apply(ctx: Context) {
                 session.body = 'An error occurred during interaction.';
                 session.status = 500;
             }
-        });
+        }));
 
     ctx.route('/interaction/:uid/confirm').methods('POST')
-        .action(async (session, _, uid) => {
+        .action(userOnly(async (session, _, uid) => {
             try {
                 const oidc = await oidcPromise;
                 const details = await oidc.interactionDetails(session.client.req, session.client.res);
@@ -816,10 +898,10 @@ export function apply(ctx: Context) {
                 session.status = 500;
                 session.body = 'Failed to confirm consent.';
             }
-        });
+        }));
 
     ctx.route('/interaction/:uid/abort').methods('POST')
-        .action(async (session, _, uid) => {
+        .action(userOnly(async (session, _, uid) => {
             try {
                 const oidc = await oidcPromise;
                 const result = { error: 'access_denied', error_description: 'End-User aborted interaction' };
@@ -830,11 +912,11 @@ export function apply(ctx: Context) {
                 session.status = 500;
                 session.body = 'Failed to abort consent.';
             }
-        });
+        }));
 
     // --- OIDC Catch-all Route ---
     ctx.route('root')
-        .action(async (session) => {
+        .action(userOnly(async (session) => {
             try {
                 const oidcCallback = await oidcCallbackPromise;
                 await forwardToProvider(session, oidcCallback);
@@ -843,10 +925,10 @@ export function apply(ctx: Context) {
                 session.status = 500;
                 session.body = 'OIDC provider encountered an unexpected error.';
             }
-        });
+        }));
 
     ctx.route('/.well-known/openid-configuration')
-        .action(async (session) => {
+        .action(userOnly(async (session) => {
             try {
                 const base = resolveExternalBase(session);
                 session.protocol = base.protocol.replace(':', '');
@@ -894,10 +976,10 @@ export function apply(ctx: Context) {
                 session.setMime('json');
                 session.body = JSON.stringify({ error: 'discovery_failed' });
             }
-        });
+        }));
 
     ctx.route('/.well-known/jwks.json')
-        .action(async (session) => {
+        .action(userOnly(async (session) => {
             try {
                 const jwks = await getPublicJwks();
                 session.setMime('json');
@@ -908,19 +990,19 @@ export function apply(ctx: Context) {
                 session.setMime('json');
                 session.body = JSON.stringify({ error: 'jwks_failed' });
             }
-        });
+        }));
 
     const devPortalWellKnownRoute = (session: Session) => {
         session.setMime('json');
         session.body = JSON.stringify(buildDevPortalMetadata(session));
     };
 
-    ctx.route('/.well-known/dev-portal').action(devPortalWellKnownRoute);
-    ctx.route('/.well-known/dev-portal.json').action(devPortalWellKnownRoute);
+    ctx.route('/.well-known/dev-portal').action(devOnly(devPortalWellKnownRoute));
+    ctx.route('/.well-known/dev-portal.json').action(devOnly(devPortalWellKnownRoute));
 
     const registerProviderEndpoint = (pathname: string, methods: string[]) => {
         const route = ctx.route(pathname).methods(...methods);
-        route.action(async (session) => {
+        route.action(userOnly(async (session) => {
             try {
                 const oidcCallback = await oidcCallbackPromise;
                 await forwardToProvider(session, oidcCallback);
@@ -930,7 +1012,7 @@ export function apply(ctx: Context) {
                 session.setMime('json');
                 session.body = JSON.stringify({ error: 'provider_unavailable' });
             }
-        });
+        }));
     };
 
     registerProviderEndpoint('/auth', ['GET', 'POST']);

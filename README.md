@@ -17,6 +17,13 @@ server:
   port: 8081
   host: 0.0.0.0
   issuer: https://developer.mcjpg.org
+  userIssuer: https://login.mcjpg.org
+  devIssuer: https://developer.mcjpg.org
+  # 可选：当反向代理传入的 Host 与 issuer 不一致时，用这些白名单匹配
+  # userHosts:
+  #   - login.mcjpg.org
+  # devHosts:
+  #   - developer.mcjpg.org
 
 admin:
   ids:
@@ -63,7 +70,6 @@ upstreamOidc:
   tokenEndpoint: https://sso.example.org/api/login/oauth/access_token
 
 devPortalOidc:
-  enabled: true
   issuer: https://sso.example.org
   clientId: your-dev-portal-client-id
   clientSecret: your-dev-portal-client-secret
@@ -119,7 +125,9 @@ certificates:
 ### 关键说明
 
 - `admin.ids`: 管理员用户的 `sub` 列表，用于访问 `/admin` 管理面板。
-- `devPortalOidc`: 开发者门户登录的上游 OIDC 配置。启用后不再使用内置 `dev-portal` 客户端登录。
+- `devPortalOidc`: 开发者门户登录的上游 OIDC 配置。
+- `server.userIssuer` / `server.devIssuer`: 分别用于“标准用户登录域名”和“开发者仪表盘域名”，两者可不同；服务会强制按域名分流路由。
+- `server.userHosts` / `server.devHosts`: 可选域名白名单；不配置时会从对应 issuer 自动推导。
 - `cloudflare.domains`: 可选二级域名列表，每个域名可以使用独立的 Cloudflare Token。
 - `cloudflare.defaultDomain`: 默认选中的二级域名。
 - `sld.reserved`: 保留前缀（不可注册）。
@@ -127,5 +135,5 @@ certificates:
 
 ### 回调地址说明
 
-- 开发者仪表盘登录回调：`/dashboard/callback`
-- 普通 OIDC 登录交互回调：`/interaction/callback`
+- 开发者仪表盘登录回调：`${server.devIssuer}/dashboard/callback`
+- 普通 OIDC 登录交互回调：`${server.userIssuer}/interaction/callback`

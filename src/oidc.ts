@@ -135,7 +135,7 @@ async function initializeOidcProvider() {
         },
     };
 
-    const ISSUER = config.server.issuer;
+    const ISSUER = config.server.userIssuer;
     oidc = new OIDCProvider(ISSUER, configuration);
     oidc.proxy = true;
     logger.info('OIDC Provider configured.');

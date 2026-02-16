@@ -6,6 +6,7 @@ import { ClientEntity } from './entities/ClientEntity';
 import { UserEntity } from './entities/UserEntity';
 import { SubdomainEntity } from './entities/SubdomainEntity';
 import { SubdomainRetentionEntity } from './entities/SubdomainRetentionEntity';
+import { ADMIN_TEST_CLIENT_ID } from './constants';
 
 export interface Client {
     client_id: string;
@@ -513,20 +514,15 @@ export const deleteClientAdmin = async (clientId: string) => {
     await repo.remove(entity);
 };
 
-async function ensureDevPortalClient() {
-    if (config.devPortalOidc.enabled) {
-        logger.info('devPortalOidc enabled; skipping built-in developer portal client.');
-        return;
-    }
+async function ensureAdminTestClient() {
     const repo = await clientRepository();
-    const devPortalId = 'dev-portal';
-    const expectedRedirects = [`${config.server.issuer}/dashboard/callback`];
-    let entity = await repo.findOne({ where: { client_id: devPortalId } });
+    const expectedRedirects = [`${config.server.devIssuer}/admin/oidc-test/callback`];
+    let entity = await repo.findOne({ where: { client_id: ADMIN_TEST_CLIENT_ID } });
     if (!entity) {
         entity = repo.create({
-            client_id: devPortalId,
+            client_id: ADMIN_TEST_CLIENT_ID,
             client_secret: randomBytes(32).toString('hex'),
-            client_name: 'Developer Portal',
+            client_name: 'OIDC Login Test',
             redirect_uris_raw: JSON.stringify(expectedRedirects),
             grant_types_raw: JSON.stringify(['authorization_code']),
             response_types_raw: JSON.stringify(['code']),
@@ -534,23 +530,20 @@ async function ensureDevPortalClient() {
             owner: 'system',
         });
         await repo.save(entity);
-        logger.info('Created default developer portal client');
+        logger.info('Created admin login test client');
         return;
     }
 
-    const currentRedirects = parseJsonArray(entity.redirect_uris_raw);
-    const expected = JSON.stringify(expectedRedirects);
-    if (JSON.stringify(currentRedirects) !== expected) {
-        entity.redirect_uris_raw = JSON.stringify(expectedRedirects);
-        await repo.save(entity);
-        logger.info('Updated developer portal redirect URIs');
-    }
+    entity.client_secret = randomBytes(32).toString('hex');
+    entity.redirect_uris_raw = JSON.stringify(expectedRedirects);
+    await repo.save(entity);
+    logger.info('Rotated admin login test client secret');
 }
 
 (async () => {
     try {
         await getDataSource();
-        await ensureDevPortalClient();
+        await ensureAdminTestClient();
         logger.info('Database initialized.');
     } catch (err) {
         logger.error('Failed to initialize database:', err);

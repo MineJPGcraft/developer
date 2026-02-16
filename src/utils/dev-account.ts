@@ -3,7 +3,6 @@ import { Logger } from 'yumeri';
 import * as jose from 'jose';
 import fetch from 'node-fetch';
 import { config } from '../config';
-import { getPublicJwks } from '../jwks';
 import { findUser } from '../db';
 
 export interface DevAccountProfile {
@@ -60,9 +59,7 @@ async function verifyDevPortalToken(token: string) {
     if (!jwksUri) {
         throw new Error('devPortalOidc 未配置 jwks_uri 或 issuer，无法验证登录令牌。');
     }
-    const jwkSet = jose.createRemoteJWKSet(new URL(jwksUri), {
-        fetcher: async (url, options) => fetch(url.toString(), options as any),
-    });
+    const jwkSet = jose.createRemoteJWKSet(new URL(jwksUri));
     const verifyOptions: jose.JWTVerifyOptions = {};
     if (config.devPortalOidc.issuer) {
         verifyOptions.issuer = config.devPortalOidc.issuer;
@@ -77,15 +74,8 @@ export async function requireDevAccount(session: Session): Promise<DevAccountDet
     }
 
     let payload: jose.JWTPayload & Record<string, unknown>;
-    if (config.devPortalOidc.enabled) {
-        const result = await verifyDevPortalToken(token);
-        payload = result.payload as jose.JWTPayload & Record<string, unknown>;
-    } else {
-        const jwks = await getPublicJwks();
-        const jwkSet = jose.createLocalJWKSet(jwks);
-        const result = await jose.jwtVerify(token, jwkSet, { issuer: config.server.issuer });
-        payload = result.payload as jose.JWTPayload & Record<string, unknown>;
-    }
+    const result = await verifyDevPortalToken(token);
+    payload = result.payload as jose.JWTPayload & Record<string, unknown>;
     const accountId = payload.sub;
     if (typeof accountId !== 'string' || !accountId) {
         throw new Error('ID Token 缺少 sub 信息');

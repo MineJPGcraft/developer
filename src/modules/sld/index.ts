@@ -4,6 +4,7 @@ import fs from 'fs';
 import { config as appConfig } from '../../config';
 import { requireDevAccount } from '../../utils/dev-account';
 import { requireAdmin } from '../../utils/admin';
+import { enforceHost } from '../../utils/host-guard';
 import {
     listSubdomains,
     createSubdomainRecord,
@@ -117,6 +118,14 @@ function withRootDomain(subdomain: string, rootDomain?: string) {
 
 
 export function apply(ctx: Context, moduleConfig: ModuleConfig) {
+    const devHosts = appConfig.server.devHosts;
+    const guard = <T extends any[]>(handler: (session: Session, ...args: T) => void | Promise<void>) => {
+        return async (session: Session, ...args: T): Promise<void> => {
+            enforceHost(session, devHosts);
+            if (session.status === 404) return;
+            await handler(session, ...args);
+        };
+    };
     const reservedRaw = moduleConfig.reserved || [];
     const availableDomains = appConfig.cloudflareDomains && appConfig.cloudflareDomains.length
         ? appConfig.cloudflareDomains.map(item => item.rootDomain)
@@ -132,7 +141,7 @@ export function apply(ctx: Context, moduleConfig: ModuleConfig) {
     };
 
     ctx.route('/sld')
-        .action((session) => {
+        .action(guard((session) => {
             try {
                 ensureStatic(session, 'static/sld/index.ejs');
             } catch (err) {
@@ -140,7 +149,7 @@ export function apply(ctx: Context, moduleConfig: ModuleConfig) {
                 session.status = 404;
                 session.body = '页面不存在';
             }
-        });
+        }));
 
     const guardDashboard = async (session: Session) => {
         try {
@@ -153,18 +162,18 @@ export function apply(ctx: Context, moduleConfig: ModuleConfig) {
         }
     };
 
-    ctx.route('/dashboard/subdomains').action(guardDashboard);
-    ctx.route('/dev/subdomains').action((session) => {
+    ctx.route('/dashboard/subdomains').action(guard(guardDashboard));
+    ctx.route('/dev/subdomains').action(guard((session) => {
         session.status = 302;
         session.head['Location'] = '/dashboard/subdomains';
-    });
-    ctx.route('/sld/dashboard').action((session) => {
+    }));
+    ctx.route('/sld/dashboard').action(guard((session) => {
         session.status = 302;
         session.head['Location'] = '/dashboard/subdomains';
-    });
+    }));
 
     const apiRoute = ctx.route('/api/subdomains').methods('GET', 'POST');
-    apiRoute.action(async (session) => {
+    apiRoute.action(guard(async (session) => {
         const method = session.client.req.method?.toUpperCase();
         try {
             const { accountId, profile } = await requireDevAccount(session);
@@ -317,10 +326,10 @@ export function apply(ctx: Context, moduleConfig: ModuleConfig) {
             session.setMime('json');
             session.body = JSON.stringify({ success: false, message: err instanceof Error ? err.message : String(err) });
         }
-    });
+    }));
 
     const adminSubdomainsRoute = ctx.route('/api/admin/subdomains').methods('GET', 'POST');
-    adminSubdomainsRoute.action(async (session) => {
+    adminSubdomainsRoute.action(guard(async (session) => {
         const method = session.client.req.method?.toUpperCase();
         try {
             await requireAdmin(session);
@@ -408,10 +417,10 @@ export function apply(ctx: Context, moduleConfig: ModuleConfig) {
             session.setMime('json');
             session.body = JSON.stringify({ success: false, message: (error as Error).message });
         }
-    });
+    }));
 
     const adminSubdomainDetail = ctx.route('/api/admin/subdomains/:id').methods('PUT', 'DELETE');
-    adminSubdomainDetail.action(async (session, _params, id) => {
+    adminSubdomainDetail.action(guard(async (session, _params, id) => {
         const method = session.client.req.method?.toUpperCase();
         try {
             await requireAdmin(session);
@@ -510,10 +519,10 @@ export function apply(ctx: Context, moduleConfig: ModuleConfig) {
             session.setMime('json');
             session.body = JSON.stringify({ success: false, message: (error as Error).message });
         }
-    });
+    }));
 
     const detailRoute = ctx.route('/api/subdomains/:id').methods('PUT', 'DELETE');
-    detailRoute.action(async (session, _params, id) => {
+    detailRoute.action(guard(async (session, _params, id) => {
         const method = session.client.req.method?.toUpperCase();
         try {
             const { accountId } = await requireDevAccount(session);
@@ -640,5 +649,5 @@ export function apply(ctx: Context, moduleConfig: ModuleConfig) {
             session.setMime('json');
             session.body = JSON.stringify({ success: false, message: err instanceof Error ? err.message : String(err) });
         }
-    });
+    }));
 }

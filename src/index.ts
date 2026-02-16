@@ -32,7 +32,7 @@ async function main() {
 
     core.use('proxy-normalizer', async (session, next) => {
         try {
-            const issuerUrl = new URL(config.server.issuer);
+            const issuerUrl = new URL(config.server.userIssuer);
             const req = session.client.req;
 
             const forwardedProto = firstHeader(req.headers['x-forwarded-proto'])
