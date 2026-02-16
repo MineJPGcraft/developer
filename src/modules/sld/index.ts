@@ -67,13 +67,14 @@ function ensureStatic(session: Session, relativePath: string) {
 function normalizeSubdomain(input: string, rootDomain?: string): string {
     let value = String(input || '').trim().toLowerCase();
     if (!value) return '';
+    value = value.replace(/\s+/g, '').replace(/^\.+/, '').replace(/\.+$/, '');
     if (rootDomain) {
         const suffix = `.${rootDomain.toLowerCase()}`;
         if (value.endsWith(suffix)) {
             value = value.slice(0, -suffix.length);
         }
     }
-    value = value.replace(/\.+$/, '');
+    value = value.replace(/^\.+/, '').replace(/\.+$/, '');
     return value;
 }
 
@@ -81,14 +82,23 @@ function validateSubdomain(value: string, settings: ModuleSettings): string | nu
     if (!value) {
         return '子域名不能为空';
     }
-    if (value.length < 3 || value.length > 63) {
-        return '子域名长度需介于 3 至 63 个字符之间';
+    if (value.length < 3 || value.length > 253) {
+        return '子域名长度需介于 3 至 253 个字符之间';
     }
-    if (!/^[a-z0-9-]+$/.test(value)) {
-        return '子域名仅支持小写字母、数字和中划线';
+    const labels = value.split('.');
+    if (labels.some(label => !label)) {
+        return '子域名不能包含连续点或以点开头/结尾';
     }
-    if (value.startsWith('-') || value.endsWith('-')) {
-        return '子域名不能以中划线开头或结尾';
+    for (const label of labels) {
+        if (label.length < 1 || label.length > 63) {
+            return '子域名每个层级长度需介于 1 至 63 个字符之间';
+        }
+        if (!/^[a-z0-9-]+$/.test(label)) {
+            return '子域名仅支持小写字母、数字、中划线和点号分隔';
+        }
+        if (label.startsWith('-') || label.endsWith('-')) {
+            return '子域名每个层级不能以中划线开头或结尾';
+        }
     }
     if (settings.reserved.has(value)) {
         return '该子域名已被保留无法使用';
@@ -211,7 +221,7 @@ export function apply(ctx: Context, moduleConfig: ModuleConfig) {
                 const proxied = type === 'SRV' ? false : Boolean(body.proxied); // SRV 不支持代理
 
                 if (!requestedRootDomain || !availableDomains.includes(requestedRootDomain)) {
-                    throw new Error('请选择有效的顶级域名');
+                    throw new Error('请选择有效的根域名');
                 }
 
                 const normalized = normalizeSubdomain(subdomainInput, requestedRootDomain);
@@ -338,7 +348,7 @@ export function apply(ctx: Context, moduleConfig: ModuleConfig) {
                     throw new Error('owner、subdomain、target 为必填');
                 }
                 if (!rootDomain || !availableDomains.includes(rootDomain)) {
-                    throw new Error('请选择有效的顶级域名');
+                    throw new Error('请选择有效的根域名');
                 }
                 if (type === 'SRV' && (!srvService || !srvProto || !Number.isFinite(srvPort) || srvPort <= 0)) {
                     throw new Error('SRV 记录需要服务名称、协议和端口号');

@@ -213,15 +213,15 @@
 
         <form id="create-subdomain-form" class="yui-form" novalidate>
           <div class="yui-form__group">
-            <label for="root-domain-select">二级域名</label>
+            <label for="root-domain-select">根域名</label>
             <select class="input root-domain-select" id="root-domain-select" name="rootDomain">
               <option value="">加载中...</option>
             </select>
           </div>
           <div class="yui-form__group">
-            <label for="subdomain-input">子域名前缀</label>
+            <label for="subdomain-input">子域名前缀（支持多级）</label>
             <div style="display:flex;gap:.5rem;align-items:center;">
-              <input class="input" type="text" id="subdomain-input" name="subdomain" required placeholder="例如：app"
+              <input class="input" type="text" id="subdomain-input" name="subdomain" required placeholder="例如：app 或 api.v2"
                 style="flex:1;">
               <span class="muted" id="root-domain-label"></span>
             </div>
@@ -311,7 +311,7 @@
           <div class="muted" id="modal-root-domain-text"></div>
         </div>
         <div class="yui-form__group">
-          <label for="modal-subdomain">子域名前缀</label>
+          <label for="modal-subdomain">子域名前缀（支持多级）</label>
           <div style="display:flex;gap:.5rem;align-items:center;">
             <input class="input" id="modal-subdomain" name="subdomain" required>
             <span class="muted" id="modal-root-domain"></span>
@@ -574,7 +574,7 @@
         proxied: formData.get('proxied') === 'on'
       };
       if (!payload.subdomain || !payload.target) { showError('子域名与目标地址均为必填。'); return; }
-      if (!payload.rootDomain) { showError('请选择顶级域名。'); return; }
+      if (!payload.rootDomain) { showError('请选择根域名。'); return; }
       if (isSrvType(payload.type) && (!payload.srvService || !payload.srvProto || !payload.srvPort)) {
         showError('SRV 记录需要服务名称、协议和端口号。');
         return;

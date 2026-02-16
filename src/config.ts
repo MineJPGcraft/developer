@@ -16,6 +16,12 @@ export interface UIConfig {
     overview: {
         heading: string;
         description: string;
+        quickLinks: Array<{
+            badge: string;
+            title: string;
+            description: string;
+            href: string;
+        }>;
     };
     dashboard: {
         heading: string;
@@ -304,6 +310,27 @@ function loadConfig(): AppConfig {
             overview: {
                 heading: String(ui.overview?.heading ?? '开发者总览'),
                 description: String(ui.overview?.description ?? '查看公告、快速入口和最新动态。'),
+                quickLinks: Array.isArray(ui.overview?.quickLinks)
+                    ? ui.overview.quickLinks.map((item: any) => ({
+                        badge: String(item?.badge ?? '入口'),
+                        title: String(item?.title ?? ''),
+                        description: String(item?.description ?? ''),
+                        href: String(item?.href ?? '#'),
+                    })).filter((item: any) => item.title && item.href)
+                    : [
+                        {
+                            badge: 'OIDC',
+                            title: '客户端管理',
+                            description: '创建、编辑与管理你的 OIDC 客户端。',
+                            href: '/dashboard/oidc',
+                        },
+                        {
+                            badge: '域名',
+                            title: '三级域名管理',
+                            description: '申请并维护 {rootDomain} 下的三级域名解析。',
+                            href: '/dashboard/subdomains',
+                        },
+                    ],
             },
             dashboard: {
                 heading: String(ui.dashboard?.heading ?? '客户端管理'),

@@ -46,16 +46,15 @@ body{background:#f8fafc;color:#0f172a;margin:0}.app-shell{min-height:100vh;displ
           </div>
 
           <div class="grid grid-quick" id="quick-links">
-            <a class="quick-link" href="/dashboard/oidc">
-              <div class="badge">OIDC</div>
-              <h3 style="margin:.75rem 0 0;">客户端管理</h3>
-              <p class="muted" style="margin-top:.5rem;">创建、编辑与管理你的 OIDC 客户端。</p>
-            </a>
-            <a class="quick-link" href="/dashboard/subdomains">
-              <div class="badge">域名</div>
-              <h3 style="margin:.75rem 0 0;">三级域名管理</h3>
-              <p class="muted" style="margin-top:.5rem;">申请并维护 <%= cloudflareRootDomain || '项目域' %>（二级域名）下的三级域名解析。</p>
-            </a>
+            <% const quickLinks = Array.isArray(ui?.overview?.quickLinks) ? ui.overview.quickLinks : []; %>
+            <% const rootDomainLabel = cloudflareRootDomain || '项目域'; %>
+            <% quickLinks.forEach(function(link){ %>
+              <a class="quick-link" href="<%= link.href %>">
+                <div class="badge"><%= link.badge || '入口' %></div>
+                <h3 style="margin:.75rem 0 0;"><%= link.title %></h3>
+                <p class="muted" style="margin-top:.5rem;"><%= String(link.description || '').replace(/\{rootDomain\}/g, rootDomainLabel) %></p>
+              </a>
+            <% }); %>
           </div>
         </section>
 
